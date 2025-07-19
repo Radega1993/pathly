@@ -1,0 +1,136 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# 🎮 PuzzlePath - Reglas de Desarrollo del MVP
+
+## 🚀 Stack Tecnológico
+
+* **Framework multiplataforma**: **React Native** + Expo
+* **Backend**: **NestJS** (API REST)
+* **Generador de niveles**: Python (API externa con IA)
+* **Base de datos**: Firebase Firestore (NoSQL)
+* **Autenticación**: Firebase Auth (Google + Email)
+* **Anuncios y pagos**: AdMob + RevenueCat
+* **Deployment**: Expo + Google Play Console + App Store Connect
+
+---
+
+## 🔐 Reglas de Autenticación
+
+1. Firebase Auth para gestión segura del usuario
+2. Guardar el `uid` en el backend solo si es necesario para estadísticas o progreso
+3. Toda la comunicación entre frontend y backend debe ir autenticada con Firebase ID Token
+
+---
+
+## 🎨 Reglas de UI/UX
+
+1. Estilo visual **minimalista moderno** con fondo blanco y líneas grises
+2. Paleta de 3 colores:
+
+   * Primario: Azul Puzzle `#3B82F6`
+   * Neutro: Gris Claro `#E5E7EB`
+   * Éxito: Verde Neón `#22C55E`
+3. Modo oscuro opcional para accesibilidad
+4. Layout mobile-only (no responsive necesario)
+5. Animaciones suaves al conectar celdas (sin sobrecargar GPU)
+6. Accesibilidad mínima: fuente ≥ 14px, botones grandes y contrastes WCAG AA
+
+---
+
+## 🛡️ Reglas de Seguridad MVP
+
+1. Backend con validaciones en `DTO + Pipes` (NestJS)
+2. Escapar siempre los datos antes de renderizarlos en frontend
+3. Verificación de payloads del generador IA antes de renderizar
+4. Límite de peticiones: 5 niveles nuevos por minuto por IP
+5. Solo permitir orígenes de frontend registrados en producción
+
+---
+
+## 📁 Estructura del Código
+
+```plaintext
+Frontend (React Native):
+- components/      → Elementos UI reutilizables (Cell, Button, Grid)
+- screens/         → Home, Game, Settings, Login
+- services/        → Firebase, RevenueCat, AdMob
+- utils/           → helpers, validadores, colores
+- store/           → Zustand o Context API para estado global
+
+Backend (NestJS):
+- src/
+  ├── auth/        → JWT, guards
+  ├── user/        → Registro de progreso
+  ├── levels/      → Endpoints para niveles
+  └── shared/      → Pipes, DTOs, interceptors
+```
+
+---
+
+## ⚡ Reglas de Performance
+
+1. Tiempo máximo de carga del nivel: **300 ms**
+2. Generador de niveles IA con respuesta en < 1s
+3. Cachear los niveles generados durante 24h
+4. Lazy loading de pantallas en React Native (`expo-router`)
+5. App size < 30 MB
+
+---
+
+## 📦 Reglas de Monetización
+
+1. **1 pista gratis por nivel**
+2. **Siguientes pistas requieren ver un anuncio**
+3. **1 anuncio intersticial cada 4 niveles jugados**
+4. Plan Pro (RevenueCat):
+
+   * **1,99 €/mes** (sin anuncios, pistas ilimitadas)
+   * **10 € pago único** (versión premium de por vida)
+
+---
+
+## 🥚 Reglas de Testing
+
+1. Test manual en Android/iOS tras cada sprint
+2. Lógica del juego probada con `unit tests`
+3. Validación automática de niveles generados
+4. Tests de UI con Expo + Jest + Testing Library
+
+---
+
+## 🔄 Flujo de Trabajo y Git
+
+### ✔️ Branching
+
+* `main`: rama estable (solo merge de versiones listas)
+* `dev`: rama de desarrollo activa
+* `feature/<nombre>`: nuevas funcionalidades
+* `fix/<nombre>`: corrección de errores
+
+### 🧐 Convención de Commits (Semantic Commits)
+
+```bash
+feat(game): añade validación de camino
+fix(auth): corrige error de logout automático
+refactor(ui): simplifica botón de pista
+test(level): añade test para generador extremo
+```
+
+### 📌 Reglas Git
+
+1. **Commits pequeños y frecuentes**
+2. Nunca hacer `force push` en main/dev
+3. Merge a `dev` solo tras revisión (pull request)
+4. Actualizar `README.md` si se modifica estructura o uso
+5. Siempre incluir `.env.example` con variables de entorno
+
+---
+
+## 🗖️ Feature Flags y QA
+
+1. Habilitar funcionalidades nuevas con `feature flags` por usuario
+2. QA con testers reales desde TestFlight / Play Console (alpha)
+3. Envío automático de errores con Sentry (opcional)
