@@ -1,289 +1,190 @@
-# 🧩 Pathly
+# 🎮 Pathly - Puzzle Game
 
-**Piensa. Conecta. Gana.**
+Un juego de puzzle donde debes conectar números en orden trazando un camino en un grid NxN.
 
-Pathly es un juego de lógica minimalista donde tu objetivo es conectar los números en el orden correcto, usando todas las celdas del tablero… y sin equivocarte.
+## 🚀 Stack Tecnológico
 
-## 🎮 Concepto del Juego
-
-- **Tablero con celdas numéricas** (1 → 2 → 3 → 4)
-- **Solo hay un camino correcto**
-- **Cada celda debe ser usada exactamente una vez**
-- **Niveles infinitos** gracias a un generador automático con IA
-- **Cuatro niveles de dificultad**: Fácil, Normal, Difícil, Extremo
-
-## 🚀 Stack Tecnológico Completo
-
-### Frontend
 - **Framework**: React Native + Expo
-- **Estado**: Zustand
-- **Navegación**: React Navigation
-- **Autenticación**: Firebase Auth
+- **Lenguaje**: TypeScript
+- **Estilo**: Minimalista moderno con paleta de colores definida
 
-### Backend
-- **Framework**: NestJS (API REST)
-- **Base de datos**: Firebase Firestore
-- **Autenticación**: Firebase Admin
-- **Documentación**: Swagger
+## 🎨 Paleta de Colores
 
-### Generador de Niveles
-- **Framework**: FastAPI (Python)
-- **IA**: OpenAI GPT-3.5-turbo
-- **Base de datos**: Firebase Firestore
-- **Autenticación**: Firebase Admin
+- **Primario**: Azul Puzzle `#3B82F6`
+- **Neutro**: Gris Claro `#E5E7EB`
+- **Éxito**: Verde Neón `#22C55E`
 
-### Infraestructura
-- **Base de datos**: Firebase Firestore (NoSQL)
-- **Autenticación**: Firebase Auth (Google + Email)
-- **Anuncios y pagos**: AdMob + RevenueCat (próximamente)
-- **Deployment**: Expo + Google Play Console + App Store Connect
+## 📦 Instalación
 
-## 📱 Características Destacadas
+```bash
+# Instalar dependencias
+npm install
 
-- 🎮 **Juego sin distracciones**: limpio, elegante y desafiante
-- 🧠 **Entrena tu lógica y concentración**
-- 🔄 **Niveles nuevos cada semana** (generados por IA)
-- 📈 **Guarda tu progreso** con login
-- 🆓 **1 pista gratis por nivel** (más a cambio de anuncios)
-- 🚫 **Suscripción opcional** sin anuncios y con pistas ilimitadas
+# Ejecutar en desarrollo
+npm start
 
-## 🎨 Diseño y UX
+# Ejecutar en Android
+npm run android
 
-- **Estilo minimalista moderno** con fondo blanco y líneas grises
-- **Paleta de 3 colores**:
-  - Primario: Azul Puzzle `#3B82F6`
-  - Neutro: Gris Claro `#E5E7EB`
-  - Éxito: Verde Neón `#22C55E`
-- **Modo oscuro opcional** para accesibilidad
-- **Layout mobile-only** (no responsive necesario)
-- **Animaciones suaves** al conectar celdas
-- **Accesibilidad mínima**: fuente ≥ 14px, botones grandes y contrastes WCAG AA
+# Ejecutar en iOS
+npm run ios
 
-## 💰 Plan de Monetización
+# Ejecutar en web
+npm run web
+```
 
-- **Versión gratuita** con anuncios
-- **1,99€/mes** o **10€ único** para eliminar anuncios y desbloquear pistas ilimitadas
+## 🎮 Pantallas del Juego
 
-## 🏗️ Estructura del Proyecto
+### 🏠 Pantalla Principal
+- **Menú principal** con opciones de juego, configuración y estadísticas
+- **Estadísticas** de niveles completados
+- **Navegación** fluida entre pantallas
+
+### 🗺️ Pantalla de Selección de Niveles
+- **Mapa visual** con isla y elementos decorativos
+- **Barriles como niveles** con números y estados
+- **Ticks de completado** para niveles terminados
+- **Carteles "Próximamente"** para niveles bloqueados
+- **Nivel actual** destacado con borde rojo
+- **Caminos conectores** entre niveles
+
+### 🎯 Pantalla de Juego
+- **Grid interactivo** específico para cada nivel
+- **Configuraciones únicas** de números por nivel
+- **Validación completa** del camino
+- **Botón de completar** cuando el nivel está terminado
+- **Progreso visual** del camino trazado
+
+## 🧩 Componente Grid
+
+El componente `Grid` es el núcleo del juego. Renderiza un tablero NxN interactivo que permite al usuario trazar caminos tocando celdas.
+
+### Props
+
+```typescript
+interface GridProps {
+  grid: Cell[][];           // Array bidimensional de celdas
+  onPathChange?: (path: Cell[]) => void;  // Callback cuando cambia el camino
+}
+
+interface Cell {
+  value: number | null;     // Número en la celda (null si está vacía)
+  x: number;                // Posición X en el grid
+  y: number;                // Posición Y en el grid
+}
+```
+
+### Uso Básico
+
+```typescript
+import Grid, { Cell } from './components/Grid';
+
+// Crear un grid 5x5
+const gridData: Cell[][] = [
+  [
+    { value: 1, x: 0, y: 0 },
+    { value: null, x: 1, y: 0 },
+    // ... más celdas
+  ],
+  // ... más filas
+];
+
+function GameScreen() {
+  const handlePathChange = (path: Cell[]) => {
+    console.log('Camino actual:', path);
+  };
+
+  return (
+    <Grid 
+      grid={gridData} 
+      onPathChange={handlePathChange}
+    />
+  );
+}
+```
+
+### Características
+
+- ✅ **Dibujo continuo**: Mantén presionado y arrastra para dibujar el camino
+- ✅ **Interactividad táctil**: Toca celdas individuales o arrastra para trazar
+- ✅ **Visualización del camino**: Líneas azules conectan las celdas del camino (sin pintar celdas)
+- ✅ **Números siempre visibles**: Los números se mantienen sobre el camino
+- ✅ **Punto de partida y final**: Número 1 (verde) y número 4 (naranja) destacados
+- ✅ **Función de retroceso**: Toca un punto anterior del camino para retroceder
+- ✅ **Botón de reinicio**: Reinicia el nivel completamente
+- ✅ **Sistema de pistas**: Analiza el camino y te dice dónde está el error o la siguiente celda
+- ✅ **Validación de adyacencia**: Solo permite conectar celdas adyacentes
+- ✅ **Experiencia móvil optimizada**: PanResponder para gestos fluidos
+- ✅ **Responsive**: Se adapta al tamaño de la pantalla
+- ✅ **Accesibilidad**: Botones grandes y contrastes adecuados
+
+### Estructura de Datos
+
+El grid se representa como un array bidimensional donde cada celda tiene:
+
+- `value`: El número que contiene (1, 2, 3, 4...) o `null` si está vacía
+- `x`, `y`: Coordenadas de posición en el grid
+
+### Eventos
+
+- `onPathChange`: Se ejecuta cada vez que el usuario modifica el camino trazado
+- `onReset`: Se ejecuta cuando el usuario presiona el botón de reinicio
+- `onHint`: Se ejecuta cuando el usuario solicita una pista
+- El camino se mantiene como un array de celdas en orden de selección
+
+### Reglas de Juego
+
+- **Punto de partida**: Debe comenzar en el número 1 (celda verde)
+- **Punto final**: Debe terminar en el número 4 (celda naranja)
+- **Conexión**: Solo se pueden conectar celdas adyacentes (horizontal o vertical)
+- **Dibujo continuo**: Mantén presionado y arrastra para dibujar el camino
+- **Retroceso**: Toca un punto anterior del camino para retroceder hasta ese punto
+- **Reinicio**: Usa el botón "🔄 Reiniciar" para empezar de nuevo
+- **Pistas**: Usa el botón "💡 Pista" para obtener ayuda sobre errores o siguiente paso
+- **Números visibles**: Los números siempre se mantienen visibles sobre el camino
+- **Completitud**: Debe usar TODAS las celdas del grid exactamente una vez
+- **Orden correcto**: Los números deben aparecer en orden 1→2→3→4 en el camino
+
+## 🎯 Objetivo del Juego
+
+Conectar todos los números en orden (1 → 2 → 3 → 4) usando **TODAS** las celdas del grid exactamente una vez, creando un camino continuo que pase por cada celda sin repetir ninguna.
+
+## 📁 Estructura del Proyecto
 
 ```
 Pathly/
-├── frontend/                 # React Native + Expo
-│   ├── components/          # Elementos UI reutilizables
-│   ├── screens/            # Pantallas de la aplicación
-│   ├── services/           # Firebase y servicios externos
-│   ├── store/              # Estado global (Zustand)
-│   ├── utils/              # Colores y utilidades
-│   └── types/              # Tipos TypeScript
-│
-├── backend/                 # NestJS API
-│   ├── src/
-│   │   ├── auth/           # Autenticación y JWT
-│   │   ├── user/           # Gestión de usuarios
-│   │   ├── levels/         # Endpoints de niveles
-│   │   └── shared/         # Pipes, DTOs, interceptors
-│   └── package.json
-│
-├── generator/               # FastAPI + Python + IA
-│   ├── main.py             # Servidor principal
-│   ├── level_generator.py  # Lógica de generación con IA
-│   ├── auth_middleware.py  # Autenticación Firebase
-│   ├── requirements.txt    # Dependencias Python
-│   └── venv/              # Entorno virtual
-│
-└── README.md              # Documentación
+├── components/          # Componentes UI reutilizables
+│   └── Grid.tsx        # Componente principal del grid
+├── screens/            # Pantallas de la aplicación
+│   ├── LevelSelectScreen.tsx  # Pantalla de selección de niveles
+│   └── GameScreen.tsx         # Pantalla de juego individual
+├── services/           # Servicios (Firebase, etc.)
+├── utils/              # Utilidades y helpers
+│   └── validatePath.ts # Validación de caminos
+├── store/              # Estado global (Zustand/Context)
+├── App.tsx             # Componente principal con navegación
+└── README.md           # Documentación
 ```
 
-## 🛠️ Instalación y Configuración
+## 🔧 Desarrollo
 
-### Prerrequisitos
+### Reglas de Desarrollo
 
-- Node.js (versión 18 o superior)
-- Python 3.8+
-- npm o yarn
-- Expo CLI
-- Cuenta de Firebase
-- Cuenta de OpenAI (para el generador de niveles)
+1. **Commits semánticos**: `feat(grid): añade validación de camino`
+2. **Testing**: Tests unitarios para lógica del juego
+3. **Performance**: Tiempo de carga < 300ms
+4. **Accesibilidad**: Fuente ≥ 14px, contrastes WCAG AA
 
-### 1. Configurar Firebase
+### Próximos Pasos
 
-1. Ve a [Firebase Console](https://console.firebase.google.com/)
-2. Crea un proyecto llamado `pathly-game`
-3. Habilita Authentication (Google + Email)
-4. Habilita Firestore Database
-5. Crea una app web y copia las credenciales
-6. Descarga la clave de servicio para el backend y generador
-
-### 2. Configurar Frontend
-
-```bash
-cd frontend
-cp env.example .env
-# Editar .env con tus credenciales de Firebase
-npm install
-```
-
-### 3. Configurar Backend
-
-```bash
-cd backend
-cp env.example .env
-# Editar .env con tus credenciales de Firebase
-npm install
-```
-
-### 4. Configurar Generador
-
-```bash
-cd generator
-cp env.example .env
-# Editar .env con tus credenciales de OpenAI y Firebase
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
-### 5. Variables de Entorno Necesarias
-
-#### Frontend (.env)
-```env
-EXPO_PUBLIC_FIREBASE_API_KEY=tu_api_key
-EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=tu_proyecto.firebaseapp.com
-EXPO_PUBLIC_FIREBASE_PROJECT_ID=tu_proyecto_id
-EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=tu_proyecto.appspot.com
-EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=123456789012
-EXPO_PUBLIC_FIREBASE_APP_ID=1:123456789012:web:abcdef1234567890
-```
-
-#### Backend (.env)
-```env
-FIREBASE_SERVICE_ACCOUNT_KEY=path/to/serviceAccountKey.json
-FRONTEND_URL=http://localhost:3000
-PORT=3001
-```
-
-#### Generador (.env)
-```env
-OPENAI_API_KEY=tu_openai_api_key
-FIREBASE_SERVICE_ACCOUNT_KEY=path/to/serviceAccountKey.json
-HOST=0.0.0.0
-PORT=8000
-```
-
-## 🚀 Ejecutar el Proyecto
-
-### Desarrollo Local
-
-1. **Iniciar Backend:**
-```bash
-cd backend
-npm run start:dev
-```
-
-2. **Iniciar Generador:**
-```bash
-cd generator
-source venv/bin/activate
-python main.py
-```
-
-3. **Iniciar Frontend:**
-```bash
-cd frontend
-npm start
-```
-
-### URLs de Desarrollo
-
-- **Frontend**: http://localhost:3000 (Expo)
-- **Backend**: http://localhost:3001
-- **Generador**: http://localhost:8000
-- **Documentación API**: http://localhost:3001/api
-
-## 🔄 Flujo de Trabajo y Git
-
-### Branching Strategy
-
-- `main`: rama estable (solo merge de versiones listas)
-- `dev`: rama de desarrollo activa
-- `feature/<nombre>`: nuevas funcionalidades
-- `fix/<nombre>`: corrección de errores
-
-### Convención de Commits (Semantic Commits)
-
-```bash
-feat(game): añade validación de camino
-fix(auth): corrige error de logout automático
-refactor(ui): simplifica botón de pista
-test(level): añade test para generador extremo
-```
-
-## 📋 Roadmap
-
-### Sprint 1: Setup técnico y login de usuario ✅
-- [x] Stack final: React Native + Firebase
-- [x] Crear repositorio y estructura base del proyecto
-- [x] Definir rutas principales: Login, Home, Nivel, Perfil
-- [x] Backend NestJS configurado
-- [x] Generador Python + FastAPI configurado
-
-### Sprint 2: Lógica del juego y tablero
-- [ ] Implementar tablero de juego en frontend
-- [ ] Lógica de conexión de celdas
-- [ ] Validación de caminos
-- [ ] Integración con generador de niveles
-
-### Sprint 3: Generador de niveles con IA
-- [ ] Integración completa con OpenAI
-- [ ] Diferentes niveles de dificultad
-- [ ] Cache de niveles generados
-- [ ] Validación automática de niveles
-
-### Sprint 4: Monetización y anuncios
-- [ ] Integración con AdMob
+- [x] ✅ Validación de caminos válidos
+- [x] ✅ Pantalla de selección de niveles
+- [x] ✅ Sistema de progresión de niveles
+- [ ] Generador de niveles con IA
 - [ ] Sistema de pistas
-- [ ] Integración con RevenueCat
-- [ ] Planes de suscripción
-
-### Sprint 5: Pulido y lanzamiento
-- [ ] Testing exhaustivo
-- [ ] Optimización de performance
-- [ ] Preparación para stores
-- [ ] Lanzamiento beta
-
-## 🛡️ Reglas de Seguridad
-
-1. **Backend con validaciones** en `DTO + Pipes` (NestJS)
-2. **Escapar siempre los datos** antes de renderizarlos en frontend
-3. **Verificación de payloads** del generador IA antes de renderizar
-4. **Límite de peticiones**: 5 niveles nuevos por minuto por IP
-5. **Solo permitir orígenes** de frontend registrados en producción
-
-## ⚡ Reglas de Performance
-
-1. **Tiempo máximo de carga del nivel**: **300 ms**
-2. **Generador de niveles IA** con respuesta en < 1s
-3. **Cachear los niveles generados** durante 24h
-4. **Lazy loading** de pantallas en React Native
-5. **App size < 30 MB**
-
-## 🤝 Contribución
-
-1. Fork el proyecto
-2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
-3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
-4. Push a la rama (`git push origin feature/AmazingFeature`)
-5. Abre un Pull Request
+- [ ] Integración con Firebase
+- [ ] Monetización con anuncios
 
 ## 📄 Licencia
 
-Este proyecto está bajo la Licencia MIT - ver el archivo [LICENSE](LICENSE) para detalles.
-
-## 📞 Contacto
-
-- **Desarrollador**: [Tu Nombre]
-- **Email**: [tu-email@ejemplo.com]
-- **Proyecto**: [https://github.com/tu-usuario/Pathly](https://github.com/tu-usuario/Pathly)
-
----
-
-**"Un solo camino. ¿Podrás encontrarlo?"** 🧩 
+MIT License 
