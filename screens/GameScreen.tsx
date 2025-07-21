@@ -1,14 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
     StyleSheet,
     TouchableOpacity,
     SafeAreaView,
+    Alert,
 } from 'react-native';
 import Grid, { Cell } from '../components/Grid';
 import { validatePath } from '../utils/validatePath';
 import { Level } from '../types/level';
+import {
+    setLastLevelPlayed,
+    markLevelCompleted,
+    isLevelCompleted,
+    getCompletedLevelsCount,
+} from '../services';
 
 interface GameScreenProps {
     level: Level;
@@ -20,9 +27,56 @@ const GameScreen: React.FC<GameScreenProps> = ({ level, onBack, onLevelComplete 
     const [currentPath, setCurrentPath] = useState<Cell[]>([]);
     const [resetCount, setResetCount] = useState(0);
     const [currentHint, setCurrentHint] = useState<string>('');
+    const [isLevelAlreadyCompleted, setIsLevelAlreadyCompleted] = useState(false);
+    const [totalCompletedLevels, setTotalCompletedLevels] = useState(0);
 
     // Usar el grid del nivel de Firestore
     const [gridData] = useState<Cell[][]>(() => level.grid);
+
+    // Log de la solución al cargar el nivel
+    useEffect(() => {
+        console.log('🔍 SOLUCIÓN DEL NIVEL:', level.solution);
+        console.log('📊 Grid del nivel:', level.gridSize, 'x', level.gridSize);
+        console.log('🎯 Números en el grid:', level.grid.flat().filter(cell => cell.value !== null).map(cell => cell.value));
+
+        // Mostrar dónde están los números en el grid
+        const numberedCells = level.grid.flat().filter(cell => cell.value !== null);
+        console.log('📍 Posiciones de números:');
+        numberedCells.forEach(cell => {
+            console.log(`   Número ${cell.value} en posición (${cell.x}, ${cell.y})`);
+        });
+
+        // Verificar si el número 1 está en la primera posición de la solución
+        const firstSolutionCell = level.solution[0];
+        const numberOneCell = numberedCells.find(cell => cell.value === 1);
+        console.log('🔍 Primera celda de solución:', firstSolutionCell);
+        console.log('🔍 Celda con número 1:', numberOneCell);
+        console.log('🔍 ¿Coinciden?:', numberOneCell && numberOneCell.x === firstSolutionCell.x && numberOneCell.y === firstSolutionCell.y);
+    }, [level]);
+
+    // Inicializar progreso al cargar el nivel
+    useEffect(() => {
+        initializeLevelProgress();
+    }, [level.id]);
+
+    const initializeLevelProgress = async () => {
+        try {
+            // Guardar que el usuario está jugando este nivel
+            await setLastLevelPlayed(level.id);
+
+            // Verificar si ya completó este nivel
+            const wasCompleted = await isLevelCompleted(level.id);
+            setIsLevelAlreadyCompleted(wasCompleted);
+
+            // Obtener estadísticas de progreso
+            const completedCount = await getCompletedLevelsCount();
+            setTotalCompletedLevels(completedCount);
+
+            console.log(`Nivel ${level.id} - Ya completado: ${wasCompleted}, Total completados: ${completedCount}`);
+        } catch (error) {
+            console.error('Error inicializando progreso del nivel:', error);
+        }
+    };
 
     const handlePathChange = (path: Cell[]) => {
         setCurrentPath(path);
@@ -42,12 +96,63 @@ const GameScreen: React.FC<GameScreenProps> = ({ level, onBack, onLevelComplete 
 
     const isPathComplete = () => {
         if (currentPath.length === 0) return false;
-        return validatePath(gridData, currentPath);
+
+        // Debug: Mostrar información de validación
+        const lastCell = currentPath[currentPath.length - 1];
+        const numberedCells = gridData.flat().filter(cell => cell.value !== null && cell.value > 0);
+        const maxNumber = Math.max(...numberedCells.map(cell => cell.value || 0));
+        const lastNumberCell = numberedCells.find(cell => cell.value === maxNumber);
+
+        console.log('🔍 VALIDACIÓN DEL CAMINO:');
+        console.log('   Última celda del camino:', lastCell);
+        console.log('   Último número esperado:', maxNumber);
+        console.log('   Celda del último número:', lastNumberCell);
+        console.log('   ¿Coinciden?:', lastCell.x === lastNumberCell?.x && lastCell.y === lastNumberCell?.y);
+        console.log('   ¿Valor de última celda es correcto?:', lastCell.value === maxNumber);
+
+        const isValid = validatePath(gridData, currentPath);
+        console.log('   Resultado de validación:', isValid);
+
+        return isValid;
     };
 
-    const handleLevelComplete = () => {
+    const handleLevelComplete = async () => {
         if (isPathComplete()) {
-            onLevelComplete(level);
+            try {
+                // Marcar el nivel como completado en el almacenamiento local
+                await markLevelCompleted(level.id);
+
+                // Actualizar estadísticas locales
+                const newCompletedCount = await getCompletedLevelsCount();
+                setTotalCompletedLevels(newCompletedCount);
+                setIsLevelAlreadyCompleted(true);
+
+                console.log(`¡Nivel ${level.id} completado! Total completados: ${newCompletedCount}`);
+
+                // Mostrar alerta de éxito
+                Alert.alert(
+                    '🎉 ¡Nivel Completado!',
+                    `¡Excelente trabajo! Has completado ${newCompletedCount} niveles en total.`,
+                    [
+                        {
+                            text: 'Continuar',
+                            onPress: () => onLevelComplete(level)
+                        }
+                    ]
+                );
+            } catch (error) {
+                console.error('Error guardando progreso:', error);
+                Alert.alert(
+                    'Error',
+                    'No se pudo guardar el progreso, pero el nivel se completó correctamente.',
+                    [
+                        {
+                            text: 'Continuar',
+                            onPress: () => onLevelComplete(level)
+                        }
+                    ]
+                );
+            }
         }
     };
 
@@ -58,8 +163,26 @@ const GameScreen: React.FC<GameScreenProps> = ({ level, onBack, onLevelComplete 
         const totalCells = gridData.length * gridData[0].length;
         const remainingCells = totalCells - currentPath.length;
 
+        // Contar números conectados vs total de números
+        const numberedCells = gridData.flat().filter(cell => cell.value !== null && cell.value > 0);
+        const numbersInPath = currentPath.filter(cell => cell.value !== null && cell.value > 0);
+        const remainingNumbers = numberedCells.length - numbersInPath.length;
+
+        if (remainingNumbers > 0) {
+            return `🔄 Conectando números... (${remainingNumbers} números restantes)`;
+        }
+
         if (remainingCells > 0) {
-            return `🔄 Trazando camino... (${remainingCells} celdas restantes)`;
+            return `🔄 Completando grid... (${remainingCells} celdas restantes)`;
+        }
+
+        // ARREGLADO: Si usó todas las celdas pero no termina en el último número
+        const lastCell = currentPath[currentPath.length - 1];
+        const maxNumber = Math.max(...numberedCells.map(cell => cell.value || 0));
+        const lastNumberCell = numberedCells.find(cell => cell.value === maxNumber);
+
+        if (lastCell.x !== lastNumberCell?.x || lastCell.y !== lastNumberCell?.y) {
+            return `❌ El camino debe terminar en el número ${maxNumber} (${lastNumberCell?.x},${lastNumberCell?.y})`;
         }
 
         return '❌ Camino incompleto - debe usar todas las celdas';
@@ -93,6 +216,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ level, onBack, onLevelComplete 
                 </View>
                 <View style={styles.headerRight}>
                     <Text style={styles.statsText}>Reinicios: {resetCount}</Text>
+                    <Text style={styles.progressText}>Completados: {totalCompletedLevels}</Text>
                 </View>
             </View>
 
@@ -100,6 +224,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ level, onBack, onLevelComplete 
             <View style={styles.gameContainer}>
                 <Grid
                     grid={gridData}
+                    solution={level.solution}
                     onPathChange={handlePathChange}
                     onReset={handleReset}
                     onHint={handleHint}
@@ -111,11 +236,13 @@ const GameScreen: React.FC<GameScreenProps> = ({ level, onBack, onLevelComplete 
                 <Text style={styles.statusText}>
                     {getPathStatus()}
                 </Text>
+                {isLevelAlreadyCompleted && (
+                    <Text style={styles.completedBadge}>
+                        ✅ Ya completaste este nivel anteriormente
+                    </Text>
+                )}
                 <Text style={styles.infoText}>
-                    Progreso: {getProgressPercentage()}% ({currentPath.length}/25 celdas)
-                </Text>
-                <Text style={styles.infoText}>
-                    Camino: {currentPath.map(cell => cell.value || '·').join(' → ')}
+                    Progreso: {getProgressPercentage()}% ({currentPath.length}/{gridData.length * gridData[0].length} celdas)
                 </Text>
 
                 {/* Pista actual */}
@@ -176,6 +303,25 @@ const styles = StyleSheet.create({
     statsText: {
         fontSize: 14,
         color: '#6B7280',
+    },
+    progressText: {
+        fontSize: 12,
+        color: '#22C55E',
+        fontWeight: 'bold',
+        marginTop: 2,
+    },
+    completedBadge: {
+        fontSize: 14,
+        color: '#22C55E',
+        fontWeight: 'bold',
+        marginBottom: 10,
+        textAlign: 'center',
+        backgroundColor: '#F0FDF4',
+        paddingHorizontal: 15,
+        paddingVertical: 8,
+        borderRadius: 15,
+        borderWidth: 1,
+        borderColor: '#22C55E',
     },
     gameContainer: {
         flex: 1,

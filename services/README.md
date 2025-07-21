@@ -1,4 +1,17 @@
-# Servicio de Niveles - Firestore
+# Servicios - Firebase y Almacenamiento Local
+
+Este directorio contiene los servicios principales de la aplicación:
+
+## 📁 Archivos
+
+- **`firebase.ts`** - Configuración de Firebase
+- **`levelService.ts`** - Servicio de niveles desde Firestore
+- **`storage.ts`** - Servicio de almacenamiento local con AsyncStorage
+- **`index.ts`** - Exportaciones centralizadas
+
+---
+
+# 🔥 Servicio de Niveles - Firestore
 
 Este servicio permite cargar niveles desde Firebase Firestore de forma aleatoria, evitando mostrar niveles repetidos.
 
@@ -153,4 +166,185 @@ const GameComponent: React.FC = () => {
 
 ### Niveles se repiten constantemente
 - Ejecuta `clearPlayedLevels()` para resetear el historial
-- Verifica que AsyncStorage esté funcionando correctamente 
+- Verifica que AsyncStorage esté funcionando correctamente
+
+---
+
+# 💾 Servicio de Almacenamiento Local
+
+Este servicio gestiona el progreso del usuario localmente usando AsyncStorage, permitiendo guardar niveles completados y el último nivel jugado sin necesidad de autenticación.
+
+## Funciones principales
+
+### `getProgress(): Promise<Progress>`
+Obtiene el progreso guardado del usuario.
+
+```typescript
+import { getProgress } from './services/storage';
+
+const progress = await getProgress();
+console.log('Niveles completados:', progress.completedLevels.size);
+console.log('Última jugada:', new Date(progress.lastPlayedAt));
+```
+
+### `markLevelCompleted(levelId: string): Promise<void>`
+Marca un nivel como completado.
+
+```typescript
+import { markLevelCompleted } from './services/storage';
+
+await markLevelCompleted('level_123');
+```
+
+### `getLastLevelPlayed(): Promise<string | null>`
+Obtiene el ID del último nivel jugado.
+
+```typescript
+import { getLastLevelPlayed } from './services/storage';
+
+const lastLevel = await getLastLevelPlayed();
+if (lastLevel) {
+  console.log('Último nivel jugado:', lastLevel);
+}
+```
+
+### `setLastLevelPlayed(levelId: string): Promise<void>`
+Guarda el ID del nivel que está jugando el usuario.
+
+```typescript
+import { setLastLevelPlayed } from './services/storage';
+
+await setLastLevelPlayed('level_456');
+```
+
+### `isLevelCompleted(levelId: string): Promise<boolean>`
+Verifica si un nivel específico está completado.
+
+```typescript
+import { isLevelCompleted } from './services/storage';
+
+const completed = await isLevelCompleted('level_123');
+if (completed) {
+  console.log('Este nivel ya fue completado');
+}
+```
+
+### `getCompletedLevelsCount(): Promise<number>`
+Obtiene el número total de niveles completados.
+
+```typescript
+import { getCompletedLevelsCount } from './services/storage';
+
+const count = await getCompletedLevelsCount();
+console.log(`Has completado ${count} niveles`);
+```
+
+### `clearProgress(): Promise<void>`
+Limpia todo el progreso guardado (útil para testing).
+
+```typescript
+import { clearProgress } from './services/storage';
+
+await clearProgress();
+```
+
+## Estructura de datos
+
+### Interfaz Progress
+```typescript
+interface Progress {
+  completedLevels: Set<string>;  // IDs de niveles completados
+  lastPlayedAt: number;          // Timestamp de la última jugada
+}
+```
+
+## Características
+
+### ✅ Funcionalidades implementadas
+
+- **Persistencia local**: Usa AsyncStorage para guardar datos
+- **Manejo de errores**: Gestión robusta de errores y datos corruptos
+- **Validación de datos**: Verifica la integridad de los datos guardados
+- **Recuperación automática**: En caso de error, reinicia el progreso
+- **Tipado completo**: TypeScript con interfaces bien definidas
+- **Funciones utilitarias**: Métodos para verificar estado y estadísticas
+
+### 🔧 Manejo de errores
+
+El servicio incluye manejo robusto de errores:
+
+- **Datos corruptos**: Si detecta datos malformados, reinicia el progreso
+- **Errores de AsyncStorage**: Captura y maneja errores de almacenamiento
+- **Recuperación**: En caso de error, devuelve valores por defecto seguros
+
+## Ejemplo de uso completo
+
+```typescript
+import React, { useEffect, useState } from 'react';
+import {
+  getProgress,
+  markLevelCompleted,
+  setLastLevelPlayed,
+  isLevelCompleted,
+  getCompletedLevelsCount
+} from './services/storage';
+
+const GameScreen: React.FC<{ levelId: string }> = ({ levelId }) => {
+  const [completed, setCompleted] = useState(false);
+  const [totalCompleted, setTotalCompleted] = useState(0);
+
+  useEffect(() => {
+    const initializeGame = async () => {
+      // Guardar que el usuario está jugando este nivel
+      await setLastLevelPlayed(levelId);
+      
+      // Verificar si ya lo completó
+      const wasCompleted = await isLevelCompleted(levelId);
+      setCompleted(wasCompleted);
+      
+      // Obtener estadísticas
+      const count = await getCompletedLevelsCount();
+      setTotalCompleted(count);
+    };
+
+    initializeGame();
+  }, [levelId]);
+
+  const handleLevelComplete = async () => {
+    try {
+      await markLevelCompleted(levelId);
+      setCompleted(true);
+      setTotalCompleted(prev => prev + 1);
+      console.log('¡Nivel completado!');
+    } catch (error) {
+      console.error('Error al guardar progreso:', error);
+    }
+  };
+
+  return (
+    <div>
+      <h2>Nivel {levelId}</h2>
+      {completed && <p>✅ Ya completaste este nivel</p>}
+      <p>Total completados: {totalCompleted}</p>
+      <button onClick={handleLevelComplete}>Completar nivel</button>
+    </div>
+  );
+};
+```
+
+## Troubleshooting
+
+### Error: "No se pudo guardar el progreso"
+- Verifica que AsyncStorage esté disponible
+- Confirma que tienes permisos de escritura en el dispositivo
+- Revisa el espacio disponible en el almacenamiento
+
+### Progreso no se guarda entre sesiones
+- Verifica que AsyncStorage esté funcionando correctamente
+- Confirma que no hay errores en la consola
+- Ejecuta `clearProgress()` y prueba de nuevo
+
+### Datos corruptos detectados
+- El servicio automáticamente reinicia el progreso
+- Verifica que no haya múltiples instancias escribiendo datos
+- Revisa la integridad del dispositivo 

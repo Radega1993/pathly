@@ -33,6 +33,69 @@ yarn-error.*
 # local env files
 .env*.local
 .env
+service-account-key.json
 
 # typescript
 *.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Python generator
+python_generator/venv/
+python_generator/__pycache__/
+python_generator/*.pyc
+python_generator/*.pyo
+python_generator/*.pyd
+python_generator/.Python
+python_generator/build/
+python_generator/develop-eggs/
+python_generator/dist/
+python_generator/downloads/
+python_generator/eggs/
+python_generator/.eggs/
+python_generator/lib/
+python_generator/lib64/
+python_generator/parts/
+python_generator/sdist/
+python_generator/var/
+python_generator/wheels/
+python_generator/*.egg-info/
+python_generator/.installed.cfg
+python_generator/*.egg
+python_generator/MANIFEST
+
+# Service account keys (security)
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!app.json
+!app.config.js

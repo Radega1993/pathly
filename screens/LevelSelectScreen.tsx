@@ -10,8 +10,13 @@ import {
     ActivityIndicator,
     Alert,
 } from 'react-native';
-import { loadLevelFromFirestore, getPlayedLevelsCount } from '../services/levelService';
+import { loadLevelFromFirestore, loadLevelByNumber, getPlayedLevelsCount, resetGameProgress } from '../services/levelService';
 import { Level as FirestoreLevel, Difficulty } from '../types/level';
+import {
+    getCompletedLevelsCount,
+    isLevelCompleted,
+    getLastLevelPlayed,
+} from '../services';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -34,6 +39,10 @@ const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, on
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [completedLevels, setCompletedLevels] = useState<string[]>([]);
+    const [localProgressStats, setLocalProgressStats] = useState({
+        totalCompleted: 0,
+        lastLevelPlayed: null as string | null,
+    });
 
     // Cargar niveles desde Firestore
     useEffect(() => {
@@ -45,14 +54,26 @@ const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, on
         setError(null);
 
         try {
-            // Cargar niveles de cada dificultad
-            const difficulties: Difficulty[] = ['easy', 'normal', 'hard', 'extreme'];
-            const loadedLevels: Level[] = [];
+            // Cargar progreso local primero
+            const [localCompletedCount, lastLevelPlayed] = await Promise.all([
+                getCompletedLevelsCount(),
+                getLastLevelPlayed(),
+            ]);
 
-            for (let i = 0; i < difficulties.length; i++) {
-                const difficulty = difficulties[i];
+            setLocalProgressStats({
+                totalCompleted: localCompletedCount,
+                lastLevelPlayed,
+            });
+
+            console.log(`Progreso local: ${localCompletedCount} niveles completados, último jugado: ${lastLevelPlayed}`);
+
+            // Cargar niveles secuenciales (1, 2, 3, 4, 5, 6, 7, 8...)
+            const loadedLevels: Level[] = [];
+            const maxLevels = 12; // Cargar hasta 12 niveles
+
+            for (let levelNumber = 1; levelNumber <= maxLevels; levelNumber++) {
                 try {
-                    const level = await loadLevelFromFirestore(difficulty);
+                    const level = await loadLevelByNumber(levelNumber);
                     loadedLevels.push({
                         id: level.id,
                         difficulty: level.difficulty,
@@ -62,27 +83,30 @@ const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, on
                         isCurrent: false, // Se determinará después
                     });
                 } catch (error) {
-                    console.warn(`No se pudo cargar nivel de dificultad ${difficulty}:`, error);
+                    console.warn(`No se pudo cargar nivel ${levelNumber}:`, error);
                 }
             }
 
-            // Obtener niveles completados
+            // Obtener niveles completados desde Firestore (para compatibilidad)
             const playedCount = await getPlayedLevelsCount();
-            console.log(`Niveles jugados: ${playedCount}`);
+            console.log(`Niveles jugados (Firestore): ${playedCount}`);
 
-            // Determinar estado de cada nivel
-            const updatedLevels = loadedLevels.map((level, index) => {
-                const isCompleted = index < playedCount;
-                const isUnlocked = isCompleted || index === playedCount; // Solo el siguiente nivel está desbloqueado
-                const isCurrent = index === playedCount; // El nivel actual es el siguiente a completar
+            // Determinar estado de cada nivel usando progreso local
+            const updatedLevels = await Promise.all(
+                loadedLevels.map(async (level, index) => {
+                    // Verificar si está completado usando el almacenamiento local
+                    const isCompleted = await isLevelCompleted(level.id);
+                    const isUnlocked = isCompleted || index === localCompletedCount; // Solo el siguiente nivel está desbloqueado
+                    const isCurrent = index === localCompletedCount; // El nivel actual es el siguiente a completar
 
-                return {
-                    ...level,
-                    isUnlocked,
-                    isCompleted,
-                    isCurrent,
-                };
-            });
+                    return {
+                        ...level,
+                        isUnlocked,
+                        isCompleted,
+                        isCurrent,
+                    };
+                })
+            );
 
             setLevels(updatedLevels);
             setCompletedLevels(updatedLevels.filter(l => l.isCompleted).map(l => l.id));
@@ -106,8 +130,9 @@ const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, on
         }
 
         try {
-            // Cargar el nivel específico desde Firestore
-            const firestoreLevel = await loadLevelFromFirestore(level.difficulty);
+            // Cargar el nivel específico por número (índice + 1)
+            const levelNumber = levels.indexOf(level) + 1;
+            const firestoreLevel = await loadLevelByNumber(levelNumber);
             onLevelSelect(firestoreLevel);
         } catch (error) {
             console.error('Error cargando nivel:', error);
@@ -117,6 +142,35 @@ const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, on
                 [{ text: 'OK' }]
             );
         }
+    };
+
+    const handleResetProgress = async () => {
+        Alert.alert(
+            '🔄 Resetear Progreso',
+            '¿Estás seguro de que quieres resetear todo el progreso? Esto te llevará de vuelta al nivel 1.',
+            [
+                {
+                    text: 'Cancelar',
+                    style: 'cancel'
+                },
+                {
+                    text: 'Resetear',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await resetGameProgress();
+                            Alert.alert(
+                                '✅ Progreso Reseteado',
+                                'Puedes empezar desde el nivel 1',
+                                [{ text: 'OK', onPress: () => loadLevelsFromFirestore() }]
+                            );
+                        } catch (error) {
+                            Alert.alert('❌ Error', 'No se pudo resetear el progreso');
+                        }
+                    }
+                }
+            ]
+        );
     };
 
     const getDifficultyColor = (difficulty: Difficulty) => {
@@ -261,8 +315,13 @@ const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, on
                 <Text style={styles.title}>🎮 Pathly</Text>
                 <View style={styles.headerRight}>
                     <Text style={styles.statsText}>
-                        {levels.filter(l => l.isCompleted).length}/{levels.length} completados
+                        {localProgressStats.totalCompleted}/{levels.length} completados
                     </Text>
+                    {localProgressStats.lastLevelPlayed && (
+                        <Text style={styles.lastPlayedText}>
+                            Último: {localProgressStats.lastLevelPlayed.slice(-3)}
+                        </Text>
+                    )}
                 </View>
             </View>
 
@@ -289,6 +348,14 @@ const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, on
                 <Text style={styles.footerSubText}>
                     Los niveles se desbloquean progresivamente según tu progreso
                 </Text>
+
+                {/* Botón temporal de reset */}
+                <TouchableOpacity
+                    style={styles.resetButton}
+                    onPress={handleResetProgress}
+                >
+                    <Text style={styles.resetButtonText}>🔄 Resetear Progreso</Text>
+                </TouchableOpacity>
             </View>
         </SafeAreaView>
     );
@@ -333,6 +400,11 @@ const styles = StyleSheet.create({
     statsText: {
         fontSize: 14,
         color: '#6B7280',
+    },
+    lastPlayedText: {
+        fontSize: 12,
+        color: '#3B82F6',
+        marginTop: 2,
     },
     mapContainer: {
         flex: 1,
@@ -528,6 +600,19 @@ const styles = StyleSheet.create({
         color: '#9CA3AF',
         marginTop: 2,
         textAlign: 'center',
+    },
+    resetButton: {
+        backgroundColor: '#EF4444',
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        borderRadius: 20,
+        marginTop: 15,
+        alignSelf: 'center',
+    },
+    resetButtonText: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: 'bold',
     },
 });
 

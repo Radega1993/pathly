@@ -8,21 +8,16 @@ import { Cell } from '../components/Grid';
  * @returns true si el camino es válido, false en caso contrario
  * 
  * Reglas de validación:
- * - El camino debe pasar por todas las celdas una sola vez
- * - El orden de los números debe ser exactamente 1→2→3→4
- * - No se puede repetir ninguna celda
+ * - El camino debe empezar en el número 1
+ * - El camino debe conectar todos los números en orden (1→2→3→4)
+ * - El camino debe ser continuo (celdas adyacentes)
+ * - No se puede repetir ninguna celda en el camino
+ * - El camino debe usar TODAS las celdas del grid
+ * - El camino debe terminar en la celda del último número
  */
 export function validatePath(grid: Cell[][], path: Cell[]): boolean {
     // Validar que el path no esté vacío
     if (path.length === 0) {
-        return false;
-    }
-
-    const gridSize = grid.length;
-    const totalCells = gridSize * gridSize;
-
-    // Verificar que el camino use todas las celdas exactamente una vez
-    if (path.length !== totalCells) {
         return false;
     }
 
@@ -38,26 +33,26 @@ export function validatePath(grid: Cell[][], path: Cell[]): boolean {
         return false;
     }
 
-    // Verificar que el camino termine en el número 4
+    // Obtener todos los números del grid
+    const numberedCells = grid.flat().filter(cell => cell.value !== null && cell.value > 0);
+    const maxNumber = Math.max(...numberedCells.map(cell => cell.value || 0));
+
+    // Verificar que el camino termine en el último número
     const lastCell = path[path.length - 1];
-    if (lastCell.value !== 4) {
+    if (lastCell.value !== maxNumber) {
         return false;
     }
 
-    // Verificar que todos los números estén en el orden correcto
-    const numberedCells = grid.flat().filter(cell => cell.value !== null);
-    const sortedNumbers = numberedCells.sort((a, b) => (a.value || 0) - (b.value || 0));
-
-    // Encontrar las posiciones de los números en el path
+    // Verificar que todos los números estén en el orden correcto en el path
     const numberPositions: { [key: number]: number } = {};
     path.forEach((cell, index) => {
-        if (cell.value !== null) {
+        if (cell.value !== null && cell.value > 0) {
             numberPositions[cell.value] = index;
         }
     });
 
-    // Verificar que los números están en orden ascendente en el path
-    for (let i = 1; i <= 4; i++) {
+    // Verificar que todos los números están en orden ascendente en el path
+    for (let i = 1; i <= maxNumber; i++) {
         if (numberPositions[i] === undefined) {
             return false;
         }
@@ -79,6 +74,12 @@ export function validatePath(grid: Cell[][], path: Cell[]): boolean {
         if (!isAdjacent) {
             return false;
         }
+    }
+
+    // ARREGLADO: Verificar que el camino usa TODAS las celdas del grid
+    const totalCells = grid.length * grid.length;
+    if (path.length !== totalCells) {
+        return false;
     }
 
     return true;

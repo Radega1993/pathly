@@ -47,6 +47,8 @@ npm run web
 - **Carteles "Próximamente"** para niveles bloqueados
 - **Nivel actual** destacado con borde rojo
 - **Caminos conectores** entre niveles
+- **Progreso local** sincronizado con AsyncStorage
+- **Último nivel jugado** mostrado en el header
 
 ### 🎯 Pantalla de Juego
 - **Grid interactivo** específico para cada nivel
@@ -54,6 +56,43 @@ npm run web
 - **Validación completa** del camino
 - **Botón de completar** cuando el nivel está terminado
 - **Progreso visual** del camino trazado
+- **Guardado automático** del progreso al completar niveles
+- **Indicador de nivel ya completado** anteriormente
+- **Estadísticas en tiempo real** de niveles completados
+
+## 💾 Sistema de Progreso Local
+
+El juego utiliza AsyncStorage para guardar el progreso del usuario localmente, sin necesidad de autenticación.
+
+### Funciones Principales
+
+```typescript
+import {
+  markLevelCompleted,
+  getLastLevelPlayed,
+  isLevelCompleted,
+  getCompletedLevelsCount,
+} from './services';
+
+// Marcar nivel como completado
+await markLevelCompleted('level_123');
+
+// Obtener último nivel jugado
+const lastLevel = await getLastLevelPlayed();
+
+// Verificar si un nivel está completado
+const completed = await isLevelCompleted('level_123');
+
+// Obtener estadísticas
+const count = await getCompletedLevelsCount();
+```
+
+### Características
+
+- **Persistencia local**: Los datos se guardan en el dispositivo
+- **Manejo de errores**: Recuperación automática de datos corruptos
+- **Sincronización**: Progreso actualizado en tiempo real
+- **Compatibilidad**: Funciona con el sistema de niveles existente
 
 ## 🧩 Componente Grid
 

@@ -4,10 +4,10 @@ import LevelSelectScreen from './screens/LevelSelectScreen';
 import GameScreen from './screens/GameScreen';
 import { Level } from './types/level';
 
-type Screen = 'menu' | 'levelSelect' | 'game';
+type AppScreen = 'menu' | 'levelSelect' | 'game';
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<Screen>('menu');
+  const [currentScreen, setCurrentScreen] = useState<AppScreen>('menu');
   const [selectedLevel, setSelectedLevel] = useState<Level | null>(null);
 
   const handleLevelSelect = (level: Level) => {

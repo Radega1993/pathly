@@ -18,6 +18,7 @@ export interface Cell {
 
 export interface GridProps {
     grid: Cell[][];
+    solution?: Array<{ x: number; y: number }>;
     onPathChange?: (path: Cell[]) => void;
     onReset?: () => void;
     onHint?: (hint: string) => void;
@@ -25,13 +26,14 @@ export interface GridProps {
 
 const { width: screenWidth } = Dimensions.get('window');
 const GRID_MARGIN = 20;
-const CELL_SIZE = Math.min((screenWidth - GRID_MARGIN * 2) / 5, 60);
+const getCellSize = (gridSize: number) => Math.min((screenWidth - GRID_MARGIN * 2) / gridSize, 60);
 
-const Grid: React.FC<GridProps> = ({ grid, onPathChange, onReset, onHint }) => {
+const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHint }) => {
     const [path, setPath] = useState<Cell[]>([]);
     const [isDrawing, setIsDrawing] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
     const [hoveredCell, setHoveredCell] = useState<Cell | null>(null);
+    const [hintCell, setHintCell] = useState<Cell | null>(null);
     const gridRef = useRef<View>(null);
 
     // Encontrar el número 1 (punto de partida)
@@ -44,6 +46,7 @@ const Grid: React.FC<GridProps> = ({ grid, onPathChange, onReset, onHint }) => {
         setIsDrawing(false);
         setIsDragging(false);
         setHoveredCell(null);
+        setHintCell(null);
         onPathChange?.([]);
     };
 
@@ -79,13 +82,24 @@ const Grid: React.FC<GridProps> = ({ grid, onPathChange, onReset, onHint }) => {
             return false;
         }
 
+        // Obtener todos los números del grid
+        const numberedCells = grid.flat().filter(cell => cell.value !== null && cell.value > 0);
+        const maxNumber = Math.max(...numberedCells.map(cell => cell.value || 0));
+
         // Verificar si es el siguiente número en secuencia
         const numberedCellsInPath = path.filter(c => c.value !== null);
         const nextExpectedNumber = numberedCellsInPath.length + 1;
 
-        if (cell.value !== null && cell.value !== nextExpectedNumber) {
-            return false; // No es el siguiente número en secuencia
+        // Si la celda tiene un número, debe ser el siguiente en secuencia
+        if (cell.value !== null) {
+            if (cell.value !== nextExpectedNumber) {
+                return false; // No es el siguiente número en secuencia
+            }
         }
+
+        // ARREGLADO: Permitir continuar después del último número
+        // El jugador debe completar todo el grid, no solo conectar los números
+        return true;
 
         return true;
     };
@@ -106,6 +120,7 @@ const Grid: React.FC<GridProps> = ({ grid, onPathChange, onReset, onHint }) => {
 
         // Verificar si es válido para añadir
         if (!isCellValidNext(cell)) {
+            console.log('❌ Celda no válida:', cell);
             return;
         }
 
@@ -113,6 +128,12 @@ const Grid: React.FC<GridProps> = ({ grid, onPathChange, onReset, onHint }) => {
         const newPath = [...path, cell];
         setPath(newPath);
         onPathChange?.(newPath);
+
+        // Debug: Mostrar información del camino
+        const numberedCellsInPath = newPath.filter(c => c.value !== null);
+        const totalCells = grid.length * grid.length;
+        console.log(`✅ Celda añadida: (${cell.x}, ${cell.y}) - Valor: ${cell.value}`);
+        console.log(`📊 Camino: ${newPath.length}/${totalCells} celdas, ${numberedCellsInPath.length} números`);
 
         // Forzar re-render para actualizar las líneas de todas las celdas
         setTimeout(() => {
@@ -125,12 +146,15 @@ const Grid: React.FC<GridProps> = ({ grid, onPathChange, onReset, onHint }) => {
     const getCellFromPosition = (x: number, y: number): Cell | null => {
         if (!gridRef.current) return null;
 
+        const gridSize = grid.length;
+        const cellSize = getCellSize(gridSize);
+
         // Calcular la posición relativa al grid
-        const gridX = Math.floor((x - GRID_MARGIN) / CELL_SIZE);
-        const gridY = Math.floor((y - GRID_MARGIN) / CELL_SIZE);
+        const gridX = Math.floor((x - GRID_MARGIN) / cellSize);
+        const gridY = Math.floor((y - GRID_MARGIN) / cellSize);
 
         // Verificar que esté dentro del grid
-        if (gridX < 0 || gridX >= 5 || gridY < 0 || gridY >= 5) {
+        if (gridX < 0 || gridX >= gridSize || gridY < 0 || gridY >= gridSize) {
             return null;
         }
 
@@ -202,15 +226,15 @@ const Grid: React.FC<GridProps> = ({ grid, onPathChange, onReset, onHint }) => {
         const pathIndex = getCellPathIndex(cell);
         const isInPath = pathIndex !== -1;
         const isHovered = hoveredCell && hoveredCell.x === cell.x && hoveredCell.y === cell.y;
+        const isHintCell = hintCell && hintCell.x === cell.x && hintCell.y === cell.y;
         const isValidNext = isCellValidNext(cell);
 
         return [
-            styles.cell,
             cell.value !== null && styles.cellWithNumber,
             cell.value === 1 && styles.startCell,
-            cell.value === 4 && styles.endCell,
             isHovered && !isInPath && isValidNext && styles.cellHovered,
             isHovered && !isInPath && !isValidNext && styles.cellInvalid,
+            isHintCell && !isInPath && styles.cellHint,
         ].filter(Boolean);
     };
 
@@ -221,7 +245,6 @@ const Grid: React.FC<GridProps> = ({ grid, onPathChange, onReset, onHint }) => {
         return [
             styles.cellText,
             cell.value === 1 && styles.startText,
-            cell.value === 4 && styles.endText,
             isInPath && styles.pathText,
         ].filter(Boolean);
     };
@@ -263,32 +286,32 @@ const Grid: React.FC<GridProps> = ({ grid, onPathChange, onReset, onHint }) => {
                 return (
                     <View style={[
                         styles.pathLine,
-                        styles.horizontalLine,
-                        styles.lineRight
+                        dynamicStyles.horizontalLine,
+                        dynamicStyles.lineRight
                     ]} />
                 );
             case 'left':
                 return (
                     <View style={[
                         styles.pathLine,
-                        styles.horizontalLine,
-                        styles.lineLeft
+                        dynamicStyles.horizontalLine,
+                        dynamicStyles.lineLeft
                     ]} />
                 );
             case 'down':
                 return (
                     <View style={[
                         styles.pathLine,
-                        styles.verticalLine,
-                        styles.lineDown
+                        dynamicStyles.verticalLine,
+                        dynamicStyles.lineDown
                     ]} />
                 );
             case 'up':
                 return (
                     <View style={[
                         styles.pathLine,
-                        styles.verticalLine,
-                        styles.lineUp
+                        dynamicStyles.verticalLine,
+                        dynamicStyles.lineUp
                     ]} />
                 );
             default:
@@ -304,32 +327,32 @@ const Grid: React.FC<GridProps> = ({ grid, onPathChange, onReset, onHint }) => {
                 return (
                     <View style={[
                         styles.pathLine,
-                        styles.horizontalLine,
-                        styles.lineLeft
+                        dynamicStyles.horizontalLine,
+                        dynamicStyles.lineLeft
                     ]} />
                 );
             case 'left':
                 return (
                     <View style={[
                         styles.pathLine,
-                        styles.horizontalLine,
-                        styles.lineRight
+                        dynamicStyles.horizontalLine,
+                        dynamicStyles.lineRight
                     ]} />
                 );
             case 'down':
                 return (
                     <View style={[
                         styles.pathLine,
-                        styles.verticalLine,
-                        styles.lineUp
+                        dynamicStyles.verticalLine,
+                        dynamicStyles.lineUp
                     ]} />
                 );
             case 'up':
                 return (
                     <View style={[
                         styles.pathLine,
-                        styles.verticalLine,
-                        styles.lineDown
+                        dynamicStyles.verticalLine,
+                        dynamicStyles.lineDown
                     ]} />
                 );
             default:
@@ -347,6 +370,14 @@ const Grid: React.FC<GridProps> = ({ grid, onPathChange, onReset, onHint }) => {
     };
 
     const getHint = (): string => {
+        console.log('🔍 GETTING HINT - Path length:', path.length);
+        console.log('🔍 GETTING HINT - Solution:', solution);
+
+        if (!solution || solution.length === 0) {
+            console.log('❌ No hay solución disponible');
+            return "No hay solución disponible para este nivel";
+        }
+
         if (path.length === 0) {
             return "Toca el número 1 para empezar el camino";
         }
@@ -362,7 +393,7 @@ const Grid: React.FC<GridProps> = ({ grid, onPathChange, onReset, onHint }) => {
             const nextCell = path[i + 1];
 
             if (!isCellAdjacent(currentCell, nextCell)) {
-                return `Error: Las celdas (${currentCell.x},${currentCell.y}) y (${nextCell.x},${nextCell.y}) no son adyacentes`;
+                return "Error: Has saltado celdas. El camino debe ser continuo";
             }
         }
 
@@ -372,55 +403,158 @@ const Grid: React.FC<GridProps> = ({ grid, onPathChange, onReset, onHint }) => {
             return "Error: Has pasado por la misma celda más de una vez";
         }
 
-        // Si el camino está completo, verificar si termina en 4
-        if (path.length === 25) {
-            if (path[24].value !== 4) {
-                return "El camino debe terminar en el número 4";
+        // SOLUCIÓN TEMPORAL: En lugar de comparar con la solución exacta,
+        // vamos a guiar al usuario basándonos en los números en el grid
+        const numberedCells = grid.flat().filter(cell => cell.value !== null).sort((a, b) => (a.value || 0) - (b.value || 0));
+        const maxNumber = Math.max(...numberedCells.map(cell => cell.value || 0));
+
+        // Verificar si el camino está completo (todos los números conectados)
+        const numbersInPath = path.filter(cell => cell.value !== null).sort((a, b) => (a.value || 0) - (b.value || 0));
+        const expectedNumbers = numberedCells.slice(0, numbersInPath.length);
+
+        const pathIsCorrect = numbersInPath.every((cell, index) => {
+            const expectedCell = expectedNumbers[index];
+            return cell.value === expectedCell.value;
+        });
+
+        if (!pathIsCorrect) {
+            return "Has tomado un camino incorrecto. Retrocede y prueba otra dirección";
+        }
+
+        // Si el camino es correcto hasta ahora, sugerir el siguiente número
+        const nextExpectedNumber = numbersInPath.length + 1;
+        if (nextExpectedNumber <= maxNumber) {
+            return `Siguiente: Busca y toca el número ${nextExpectedNumber}`;
+        }
+
+        // Si ya conectó todos los números, verificar si completó el grid
+        const totalCells = grid.length * grid.length;
+        if (path.length === totalCells) {
+            // Verificar si termina en el último número
+            const lastCell = path[path.length - 1];
+            const lastNumberCell = numberedCells.find(cell => cell.value === maxNumber);
+
+            if (lastCell.x === lastNumberCell?.x && lastCell.y === lastNumberCell?.y) {
+                return "¡Nivel completado! Has usado todas las celdas y conectado todos los números.";
+            } else {
+                return `Has usado todas las celdas, pero el camino debe terminar en el número ${maxNumber} (${lastNumberCell?.x},${lastNumberCell?.y}).`;
             }
-            return "¡Camino completado correctamente!";
         }
 
-        // Buscar la siguiente celda correcta
-        const lastCell = path[path.length - 1];
-        const adjacentCells = [];
-
-        // Buscar celdas adyacentes no visitadas
-        for (let y = 0; y < 5; y++) {
-            for (let x = 0; x < 5; x++) {
-                const cell = grid[y][x];
-                const isVisited = path.some(pathCell => pathCell.x === cell.x && pathCell.y === cell.y);
-
-                if (isCellAdjacent(cell, lastCell) && !isVisited) {
-                    adjacentCells.push(cell);
-                }
-            }
+        // Si ya conectó todos los números pero no completó el grid
+        if (nextExpectedNumber > maxNumber) {
+            const remainingCells = totalCells - path.length;
+            return `Has conectado todos los números. Ahora completa el grid visitando las ${remainingCells} celdas restantes.`;
         }
 
-        if (adjacentCells.length === 0) {
-            return "No hay celdas adyacentes disponibles. Debes retroceder";
-        }
-
-        // Priorizar celdas con números en orden
-        const numberedCells = adjacentCells.filter(cell => cell.value !== null);
-        if (numberedCells.length > 0) {
-            const numberedCellsInPath = path.filter(cell => cell.value !== null);
-            const expectedNumber = numberedCellsInPath.length + 1;
-            const correctCell = numberedCells.find(cell => cell.value === expectedNumber);
-            if (correctCell) {
-                return `Siguiente: Toca la celda (${correctCell.x},${correctCell.y}) con el número ${correctCell.value}`;
-            }
-        }
-
-        // Si no hay números específicos, sugerir cualquier celda adyacente
-        const suggestedCell = adjacentCells[0];
-        return `Siguiente: Puedes tocar la celda (${suggestedCell.x},${suggestedCell.y})`;
-
+        return "Continúa conectando los números en orden";
     };
 
     const handleHint = () => {
         const hint = getHint();
         onHint?.(hint);
+
+        // Iluminar la celda sugerida si es posible
+        const suggestedCell = getSuggestedCell();
+        setHintCell(suggestedCell);
+
+        // Quitar la iluminación después de 3 segundos
+        setTimeout(() => {
+            setHintCell(null);
+        }, 3000);
     };
+
+    const getSuggestedCell = (): Cell | null => {
+        if (path.length === 0) {
+            // Si no hay camino, sugerir el número 1
+            return grid.flat().find(cell => cell.value === 1) || null;
+        }
+
+        // SOLUCIÓN TEMPORAL: Buscar el siguiente número en secuencia
+        const numberedCells = grid.flat().filter(cell => cell.value !== null).sort((a, b) => (a.value || 0) - (b.value || 0));
+        const numbersInPath = path.filter(cell => cell.value !== null).sort((a, b) => (a.value || 0) - (b.value || 0));
+        const nextExpectedNumber = numbersInPath.length + 1;
+        const maxNumber = Math.max(...numberedCells.map(cell => cell.value || 0));
+
+        // Verificar si el camino actual es correcto
+        const pathIsCorrect = numbersInPath.every((cell, index) => {
+            const expectedCell = numberedCells[index];
+            return cell.value === expectedCell.value;
+        });
+
+        if (!pathIsCorrect) {
+            return null; // No sugerir si el camino es incorrecto
+        }
+
+        // Buscar el siguiente número
+        const nextNumberCell = numberedCells.find(cell => cell.value === nextExpectedNumber);
+        if (nextNumberCell) {
+            return nextNumberCell;
+        }
+
+        // Si ya conectó todos los números, sugerir celdas adyacentes vacías
+        if (nextExpectedNumber > maxNumber) {
+            const lastCell = path[path.length - 1];
+            const adjacentCells = [];
+            const gridSize = grid.length;
+
+            for (let y = 0; y < gridSize; y++) {
+                for (let x = 0; x < gridSize; x++) {
+                    const cell = grid[y][x];
+                    const isVisited = path.some(pathCell => pathCell.x === cell.x && pathCell.y === cell.y);
+
+                    if (isCellAdjacent(cell, lastCell) && !isVisited) {
+                        adjacentCells.push(cell);
+                    }
+                }
+            }
+
+            return adjacentCells[0] || null;
+        }
+
+        return null;
+    };
+
+    const gridSize = grid.length;
+    const cellSize = getCellSize(gridSize);
+
+    const dynamicStyles = StyleSheet.create({
+        cell: {
+            width: cellSize,
+            height: cellSize,
+            backgroundColor: '#FFFFFF',
+            borderWidth: 1,
+            borderColor: '#E5E7EB',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: 1,
+            position: 'relative',
+        },
+        horizontalLine: {
+            height: 6,
+            width: cellSize / 2 + 3,
+        },
+        verticalLine: {
+            width: 6,
+            height: cellSize / 2 + 3,
+        },
+        lineRight: {
+            left: cellSize / 2 - 3,
+            top: (cellSize - 6) / 2,
+        },
+        lineLeft: {
+            right: cellSize / 2 - 3,
+            top: (cellSize - 6) / 2,
+        },
+        lineDown: {
+            top: cellSize / 2 - 3,
+            left: (cellSize - 6) / 2,
+        },
+        lineUp: {
+            bottom: cellSize / 2 - 3,
+            left: (cellSize - 6) / 2,
+        },
+    });
 
     return (
         <View style={styles.container}>
@@ -434,7 +568,7 @@ const Grid: React.FC<GridProps> = ({ grid, onPathChange, onReset, onHint }) => {
                         {row.map((cell, colIndex) => (
                             <TouchableOpacity
                                 key={`${rowIndex}-${colIndex}`}
-                                style={getCellStyle(cell)}
+                                style={[dynamicStyles.cell, ...getCellStyle(cell)]}
                                 onPress={() => handleCellPress(cell)}
                                 activeOpacity={0.7}
                                 disabled={isDragging} // Deshabilitar durante el drag
@@ -481,17 +615,6 @@ const styles = StyleSheet.create({
     row: {
         flexDirection: 'row',
     },
-    cell: {
-        width: CELL_SIZE,
-        height: CELL_SIZE,
-        backgroundColor: '#FFFFFF',
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-        alignItems: 'center',
-        justifyContent: 'center',
-        margin: 1,
-        position: 'relative',
-    },
     cellWithNumber: {
         backgroundColor: '#F3F4F6',
     },
@@ -510,6 +633,16 @@ const styles = StyleSheet.create({
         backgroundColor: '#FEE2E2',
         borderColor: '#EF4444',
         borderWidth: 2,
+    },
+    cellHint: {
+        backgroundColor: '#FEF3C7',
+        borderColor: '#F59E0B',
+        borderWidth: 3,
+        shadowColor: '#F59E0B',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.5,
+        shadowRadius: 8,
+        elevation: 5,
     },
     numberContainer: {
         position: 'absolute',
@@ -540,30 +673,6 @@ const styles = StyleSheet.create({
         backgroundColor: '#3B82F6',
         zIndex: 1,
         borderRadius: 2,
-    },
-    horizontalLine: {
-        height: 6,
-        width: CELL_SIZE / 2 + 3,
-    },
-    verticalLine: {
-        width: 6,
-        height: CELL_SIZE / 2 + 3,
-    },
-    lineRight: {
-        left: CELL_SIZE / 2 - 3,
-        top: (CELL_SIZE - 6) / 2,
-    },
-    lineLeft: {
-        right: CELL_SIZE / 2 - 3,
-        top: (CELL_SIZE - 6) / 2,
-    },
-    lineDown: {
-        top: CELL_SIZE / 2 - 3,
-        left: (CELL_SIZE - 6) / 2,
-    },
-    lineUp: {
-        bottom: CELL_SIZE / 2 - 3,
-        left: (CELL_SIZE - 6) / 2,
     },
 
     buttonContainer: {

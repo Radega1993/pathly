@@ -15,4 +15,6 @@ export interface FirestoreLevel {
     gridSize: number;
     grid: (number | null)[][] | { [key: string]: (number | null)[] };
     solution: Array<{ x: number; y: number }>;
+    level?: number;
+    createdAt?: any;
 } 
