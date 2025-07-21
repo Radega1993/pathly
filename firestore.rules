@@ -1,0 +1,21 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Reglas para la colección de niveles
+    match /levels/{levelId} {
+      // Permitir lectura y escritura para desarrollo
+      // ⚠️ IMPORTANTE: Cambiar a reglas más restrictivas para producción
+      allow read, write: if true;
+      
+      // Reglas recomendadas para producción:
+      // allow read: if true;  // Cualquiera puede leer niveles
+      // allow write: if false; // Solo administradores pueden escribir
+    }
+    
+    // Reglas para otras colecciones futuras
+    match /{document=**} {
+      // Permitir acceso total para desarrollo
+      allow read, write: if true;
+    }
+  }
+} 

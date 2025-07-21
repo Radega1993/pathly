@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
@@ -7,68 +7,182 @@ import {
     ScrollView,
     Dimensions,
     SafeAreaView,
+    ActivityIndicator,
+    Alert,
 } from 'react-native';
+import { loadLevelFromFirestore, getPlayedLevelsCount } from '../services/levelService';
+import { Level as FirestoreLevel, Difficulty } from '../types/level';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 interface Level {
-    id: number;
+    id: string;
+    difficulty: Difficulty;
     isUnlocked: boolean;
     isCompleted: boolean;
     isCurrent: boolean;
+    gridSize: number;
 }
 
 interface LevelSelectScreenProps {
-    onLevelSelect: (levelId: number) => void;
+    onLevelSelect: (level: FirestoreLevel) => void;
     onBack: () => void;
 }
 
 const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, onBack }) => {
-    // Estado de los niveles (solo 7 niveles existentes, el 8 sería próximo)
-    const [levels] = useState<Level[]>([
-        { id: 1, isUnlocked: true, isCompleted: true, isCurrent: false },
-        { id: 2, isUnlocked: true, isCompleted: false, isCurrent: false },
-        { id: 3, isUnlocked: true, isCompleted: false, isCurrent: true },
-        { id: 4, isUnlocked: true, isCompleted: false, isCurrent: false },
-        { id: 5, isUnlocked: true, isCompleted: false, isCurrent: false },
-        { id: 6, isUnlocked: true, isCompleted: false, isCurrent: false },
-        { id: 7, isUnlocked: true, isCompleted: false, isCurrent: false },
-        { id: 8, isUnlocked: false, isCompleted: false, isCurrent: false }, // Próximamente
-    ]);
+    const [levels, setLevels] = useState<Level[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [completedLevels, setCompletedLevels] = useState<string[]>([]);
 
-    const handleLevelPress = (level: Level) => {
-        if (level.isUnlocked) {
-            onLevelSelect(level.id);
+    // Cargar niveles desde Firestore
+    useEffect(() => {
+        loadLevelsFromFirestore();
+    }, []);
+
+    const loadLevelsFromFirestore = async () => {
+        setLoading(true);
+        setError(null);
+
+        try {
+            // Cargar niveles de cada dificultad
+            const difficulties: Difficulty[] = ['easy', 'normal', 'hard', 'extreme'];
+            const loadedLevels: Level[] = [];
+
+            for (let i = 0; i < difficulties.length; i++) {
+                const difficulty = difficulties[i];
+                try {
+                    const level = await loadLevelFromFirestore(difficulty);
+                    loadedLevels.push({
+                        id: level.id,
+                        difficulty: level.difficulty,
+                        gridSize: level.gridSize,
+                        isUnlocked: true, // Se determinará después
+                        isCompleted: false, // Se determinará después
+                        isCurrent: false, // Se determinará después
+                    });
+                } catch (error) {
+                    console.warn(`No se pudo cargar nivel de dificultad ${difficulty}:`, error);
+                }
+            }
+
+            // Obtener niveles completados
+            const playedCount = await getPlayedLevelsCount();
+            console.log(`Niveles jugados: ${playedCount}`);
+
+            // Determinar estado de cada nivel
+            const updatedLevels = loadedLevels.map((level, index) => {
+                const isCompleted = index < playedCount;
+                const isUnlocked = isCompleted || index === playedCount; // Solo el siguiente nivel está desbloqueado
+                const isCurrent = index === playedCount; // El nivel actual es el siguiente a completar
+
+                return {
+                    ...level,
+                    isUnlocked,
+                    isCompleted,
+                    isCurrent,
+                };
+            });
+
+            setLevels(updatedLevels);
+            setCompletedLevels(updatedLevels.filter(l => l.isCompleted).map(l => l.id));
+
+        } catch (error) {
+            console.error('Error cargando niveles:', error);
+            setError('Error al cargar los niveles. Intenta de nuevo.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleLevelPress = async (level: Level) => {
+        if (!level.isUnlocked) {
+            Alert.alert(
+                'Nivel Bloqueado',
+                'Completa el nivel anterior para desbloquear este nivel.',
+                [{ text: 'OK' }]
+            );
+            return;
+        }
+
+        try {
+            // Cargar el nivel específico desde Firestore
+            const firestoreLevel = await loadLevelFromFirestore(level.difficulty);
+            onLevelSelect(firestoreLevel);
+        } catch (error) {
+            console.error('Error cargando nivel:', error);
+            Alert.alert(
+                'Error',
+                'No se pudo cargar el nivel. Intenta de nuevo.',
+                [{ text: 'OK' }]
+            );
+        }
+    };
+
+    const getDifficultyColor = (difficulty: Difficulty) => {
+        switch (difficulty) {
+            case 'easy': return '#22C55E'; // Verde
+            case 'normal': return '#3B82F6'; // Azul
+            case 'hard': return '#F59E0B'; // Amarillo/Naranja
+            case 'extreme': return '#EF4444'; // Rojo
+            default: return '#6B7280'; // Gris
+        }
+    };
+
+    const getDifficultyEmoji = (difficulty: Difficulty) => {
+        switch (difficulty) {
+            case 'easy': return '🟢';
+            case 'normal': return '🔵';
+            case 'hard': return '🟡';
+            case 'extreme': return '🔴';
+            default: return '⚪';
+        }
+    };
+
+    const getDifficultyText = (difficulty: Difficulty) => {
+        switch (difficulty) {
+            case 'easy': return 'Fácil';
+            case 'normal': return 'Normal';
+            case 'hard': return 'Difícil';
+            case 'extreme': return 'Extremo';
+            default: return 'Desconocido';
         }
     };
 
     const renderLevel = (level: Level, index: number) => {
         const isLast = index === levels.length - 1;
+        const difficultyColor = getDifficultyColor(level.difficulty);
 
         return (
             <View key={level.id} style={styles.levelContainer}>
                 {/* Línea del camino (excepto para el último nivel) */}
                 {!isLast && (
-                    <View style={styles.pathLine} />
+                    <View style={[styles.pathLine, { backgroundColor: difficultyColor }]} />
                 )}
 
                 {/* Círculo del nivel */}
                 <TouchableOpacity
                     style={[
                         styles.levelCircle,
-                        level.isCurrent && styles.currentLevel,
+                        { borderColor: difficultyColor },
+                        level.isCurrent && [styles.currentLevel, { backgroundColor: difficultyColor }],
                         !level.isUnlocked && styles.lockedLevel,
                     ]}
                     onPress={() => handleLevelPress(level)}
                     disabled={!level.isUnlocked}
                 >
+                    {/* Emoji de dificultad */}
+                    <Text style={styles.difficultyEmoji}>
+                        {getDifficultyEmoji(level.difficulty)}
+                    </Text>
+
                     {/* Número del nivel */}
                     <Text style={[
                         styles.levelNumber,
                         level.isCurrent && styles.currentLevelText,
                         !level.isUnlocked && styles.lockedLevelText,
                     ]}>
-                        {level.id}
+                        {index + 1}
                     </Text>
 
                     {/* Tick de completado */}
@@ -78,16 +192,64 @@ const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, on
                         </View>
                     )}
 
-                    {/* Cartel de próximamente */}
+                    {/* Cartel de bloqueado */}
                     {!level.isUnlocked && (
-                        <View style={styles.comingSoonBadge}>
-                            <Text style={styles.comingSoonText}>Próximamente</Text>
+                        <View style={styles.lockedBadge}>
+                            <Text style={styles.lockedText}>🔒</Text>
                         </View>
                     )}
                 </TouchableOpacity>
+
+                {/* Información de dificultad */}
+                <Text style={[styles.difficultyText, { color: difficultyColor }]}>
+                    {getDifficultyText(level.difficulty)}
+                </Text>
+                <Text style={styles.gridSizeText}>
+                    {level.gridSize}x{level.gridSize}
+                </Text>
             </View>
         );
     };
+
+    // Mostrar loading
+    if (loading) {
+        return (
+            <SafeAreaView style={styles.container}>
+                <View style={styles.header}>
+                    <TouchableOpacity style={styles.backButton} onPress={onBack}>
+                        <Text style={styles.backButtonText}>←</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.title}>🎮 Pathly</Text>
+                    <View style={styles.headerRight} />
+                </View>
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#3B82F6" />
+                    <Text style={styles.loadingText}>Cargando niveles...</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
+
+    // Mostrar error
+    if (error) {
+        return (
+            <SafeAreaView style={styles.container}>
+                <View style={styles.header}>
+                    <TouchableOpacity style={styles.backButton} onPress={onBack}>
+                        <Text style={styles.backButtonText}>←</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.title}>🎮 Pathly</Text>
+                    <View style={styles.headerRight} />
+                </View>
+                <View style={styles.errorContainer}>
+                    <Text style={styles.errorText}>{error}</Text>
+                    <TouchableOpacity style={styles.retryButton} onPress={loadLevelsFromFirestore}>
+                        <Text style={styles.retryButtonText}>Reintentar</Text>
+                    </TouchableOpacity>
+                </View>
+            </SafeAreaView>
+        );
+    }
 
     return (
         <SafeAreaView style={styles.container}>
@@ -98,7 +260,9 @@ const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, on
                 </TouchableOpacity>
                 <Text style={styles.title}>🎮 Pathly</Text>
                 <View style={styles.headerRight}>
-                    <Text style={styles.statsText}>Niveles: {levels.filter(l => l.isCompleted).length}/{levels.filter(l => l.isUnlocked).length}</Text>
+                    <Text style={styles.statsText}>
+                        {levels.filter(l => l.isCompleted).length}/{levels.length} completados
+                    </Text>
                 </View>
             </View>
 
@@ -121,6 +285,9 @@ const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, on
             <View style={styles.footer}>
                 <Text style={styles.footerText}>
                     Conecta los números en orden para completar cada nivel
+                </Text>
+                <Text style={styles.footerSubText}>
+                    Los niveles se desbloquean progresivamente según tu progreso
                 </Text>
             </View>
         </SafeAreaView>
@@ -284,6 +451,82 @@ const styles = StyleSheet.create({
     footerText: {
         fontSize: 16,
         color: '#6B7280',
+        textAlign: 'center',
+    },
+    footerSubText: {
+        fontSize: 14,
+        color: '#9CA3AF',
+        textAlign: 'center',
+        marginTop: 5,
+    },
+    loadingContainer: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 40,
+    },
+    loadingText: {
+        fontSize: 18,
+        color: '#6B7280',
+        marginTop: 20,
+        textAlign: 'center',
+    },
+    errorContainer: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 40,
+    },
+    errorText: {
+        fontSize: 18,
+        color: '#EF4444',
+        textAlign: 'center',
+        marginBottom: 20,
+    },
+    retryButton: {
+        backgroundColor: '#3B82F6',
+        paddingHorizontal: 30,
+        paddingVertical: 15,
+        borderRadius: 25,
+    },
+    retryButtonText: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
+    difficultyEmoji: {
+        fontSize: 16,
+        position: 'absolute',
+        top: 5,
+        right: 5,
+    },
+    lockedBadge: {
+        position: 'absolute',
+        top: -8,
+        right: -8,
+        width: 24,
+        height: 24,
+        backgroundColor: '#6B7280',
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 2,
+        borderColor: '#FFFFFF',
+    },
+    lockedText: {
+        fontSize: 12,
+        color: '#FFFFFF',
+    },
+    difficultyText: {
+        fontSize: 12,
+        fontWeight: 'bold',
+        marginTop: 8,
+        textAlign: 'center',
+    },
+    gridSizeText: {
+        fontSize: 10,
+        color: '#9CA3AF',
+        marginTop: 2,
         textAlign: 'center',
     },
 });

@@ -2,65 +2,22 @@ import React, { useState } from 'react';
 import { StyleSheet, View, Text, SafeAreaView, TouchableOpacity } from 'react-native';
 import LevelSelectScreen from './screens/LevelSelectScreen';
 import GameScreen from './screens/GameScreen';
+import { Level } from './types/level';
 
 type Screen = 'menu' | 'levelSelect' | 'game';
 
-interface Level {
-  id: number;
-  isUnlocked: boolean;
-  isCompleted: boolean;
-  isCurrent: boolean;
-}
-
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('menu');
-  const [selectedLevel, setSelectedLevel] = useState<number>(1);
-  const [levels, setLevels] = useState<Level[]>([
-    { id: 1, isUnlocked: true, isCompleted: true, isCurrent: false },
-    { id: 2, isUnlocked: true, isCompleted: false, isCurrent: false },
-    { id: 3, isUnlocked: true, isCompleted: false, isCurrent: true },
-    { id: 4, isUnlocked: true, isCompleted: false, isCurrent: false },
-    { id: 5, isUnlocked: true, isCompleted: false, isCurrent: false },
-    { id: 6, isUnlocked: true, isCompleted: false, isCurrent: false },
-    { id: 7, isUnlocked: true, isCompleted: false, isCurrent: false },
-    { id: 8, isUnlocked: false, isCompleted: false, isCurrent: false }, // Próximamente
-  ]);
+  const [selectedLevel, setSelectedLevel] = useState<Level | null>(null);
 
-  const handleLevelSelect = (levelId: number) => {
-    // Solo permitir seleccionar niveles desbloqueados y existentes
-    const level = levels.find(l => l.id === levelId);
-    if (level && level.isUnlocked && levelId <= 7) {
-      setSelectedLevel(levelId);
-      setCurrentScreen('game');
-    }
+  const handleLevelSelect = (level: Level) => {
+    setSelectedLevel(level);
+    setCurrentScreen('game');
   };
 
-  const handleLevelComplete = (levelId: number) => {
-    // Marcar el nivel como completado
-    setLevels(prevLevels =>
-      prevLevels.map(level =>
-        level.id === levelId
-          ? { ...level, isCompleted: true, isCurrent: false }
-          : level
-      )
-    );
-
-    // Desbloquear el siguiente nivel si existe y no es el nivel 8
-    const nextLevelId = levelId + 1;
-    if (nextLevelId <= 7) {
-      const nextLevel = levels.find(level => level.id === nextLevelId);
-      if (nextLevel && !nextLevel.isUnlocked) {
-        setLevels(prevLevels =>
-          prevLevels.map(level =>
-            level.id === nextLevelId
-              ? { ...level, isUnlocked: true, isCurrent: true }
-              : level
-          )
-        );
-      }
-    }
-
-    // Volver a la selección de niveles
+  const handleLevelComplete = (level: Level) => {
+    // El progreso se maneja automáticamente en LevelSelectScreen
+    // Solo volver a la selección de niveles
     setCurrentScreen('levelSelect');
   };
 
@@ -100,7 +57,7 @@ export default function App() {
 
               <View style={styles.stats}>
                 <Text style={styles.statsText}>
-                  Niveles completados: {levels.filter(l => l.isCompleted).length}/{levels.filter(l => l.isUnlocked && l.id <= 7).length}
+                  ¡Completa niveles para desbloquear más!
                 </Text>
               </View>
             </View>
@@ -116,13 +73,13 @@ export default function App() {
         );
 
       case 'game':
-        return (
+        return selectedLevel ? (
           <GameScreen
-            levelId={selectedLevel}
+            level={selectedLevel}
             onBack={handleBack}
             onLevelComplete={handleLevelComplete}
           />
-        );
+        ) : null;
 
       default:
         return null;
