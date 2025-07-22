@@ -14,83 +14,8 @@ import { Level, Difficulty, FirestoreLevel } from '../types/level';
 import { Cell } from '../components/Grid';
 
 const PLAYED_LEVELS_KEY = 'played_levels';
-const DEV_MODE_KEY = 'dev_mode';
 
-// Niveles de desarrollo local
-const devLevels: { [key in Difficulty]: FirestoreLevel } = {
-    easy: {
-        difficulty: 'easy',
-        gridSize: 5,
-        grid: [
-            [1, null, null, null, null],
-            [null, null, null, null, null],
-            [null, null, 2, null, null],
-            [null, null, null, null, null],
-            [null, null, null, null, 4]
-        ],
-        solution: [
-            { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }, { x: 3, y: 0 }, { x: 4, y: 0 },
-            { x: 4, y: 1 }, { x: 3, y: 1 }, { x: 2, y: 1 }, { x: 1, y: 1 }, { x: 0, y: 1 },
-            { x: 0, y: 2 }, { x: 1, y: 2 }, { x: 2, y: 2 }, { x: 3, y: 2 }, { x: 4, y: 2 },
-            { x: 4, y: 3 }, { x: 3, y: 3 }, { x: 2, y: 3 }, { x: 1, y: 3 }, { x: 0, y: 3 },
-            { x: 0, y: 4 }, { x: 1, y: 4 }, { x: 2, y: 4 }, { x: 3, y: 4 }, { x: 4, y: 4 }
-        ]
-    },
-    normal: {
-        difficulty: 'normal',
-        gridSize: 5,
-        grid: [
-            [null, 1, null, null, null],
-            [null, null, null, null, null],
-            [null, null, null, 2, null],
-            [null, null, null, null, null],
-            [null, null, null, null, 4]
-        ],
-        solution: [
-            { x: 1, y: 0 }, { x: 2, y: 0 }, { x: 3, y: 0 }, { x: 4, y: 0 }, { x: 0, y: 0 },
-            { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }, { x: 3, y: 1 }, { x: 4, y: 1 },
-            { x: 4, y: 2 }, { x: 3, y: 2 }, { x: 2, y: 2 }, { x: 1, y: 2 }, { x: 0, y: 2 },
-            { x: 0, y: 3 }, { x: 1, y: 3 }, { x: 2, y: 3 }, { x: 3, y: 3 }, { x: 4, y: 3 },
-            { x: 4, y: 4 }, { x: 3, y: 4 }, { x: 2, y: 4 }, { x: 1, y: 4 }, { x: 0, y: 4 }
-        ]
-    },
-    hard: {
-        difficulty: 'hard',
-        gridSize: 5,
-        grid: [
-            [null, null, 1, null, null],
-            [null, null, null, null, null],
-            [null, null, null, null, null],
-            [null, null, null, null, null],
-            [null, null, null, null, 4]
-        ],
-        solution: [
-            { x: 2, y: 0 }, { x: 3, y: 0 }, { x: 4, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 0 },
-            { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 2, y: 1 }, { x: 3, y: 1 }, { x: 4, y: 1 },
-            { x: 4, y: 2 }, { x: 3, y: 2 }, { x: 2, y: 2 }, { x: 1, y: 2 }, { x: 0, y: 2 },
-            { x: 0, y: 3 }, { x: 1, y: 3 }, { x: 2, y: 3 }, { x: 3, y: 3 }, { x: 4, y: 3 },
-            { x: 4, y: 4 }, { x: 3, y: 4 }, { x: 2, y: 4 }, { x: 1, y: 4 }, { x: 0, y: 4 }
-        ]
-    },
-    extreme: {
-        difficulty: 'extreme',
-        gridSize: 5,
-        grid: [
-            [null, null, null, null, null],
-            [null, 1, null, null, null],
-            [null, null, null, null, null],
-            [null, null, null, null, null],
-            [null, null, null, null, 4]
-        ],
-        solution: [
-            { x: 1, y: 1 }, { x: 2, y: 1 }, { x: 3, y: 1 }, { x: 4, y: 1 }, { x: 0, y: 1 },
-            { x: 0, y: 0 }, { x: 1, y: 0 }, { x: 2, y: 0 }, { x: 3, y: 0 }, { x: 4, y: 0 },
-            { x: 4, y: 2 }, { x: 3, y: 2 }, { x: 2, y: 2 }, { x: 1, y: 2 }, { x: 0, y: 2 },
-            { x: 0, y: 3 }, { x: 1, y: 3 }, { x: 2, y: 3 }, { x: 3, y: 3 }, { x: 4, y: 3 },
-            { x: 4, y: 4 }, { x: 3, y: 4 }, { x: 2, y: 4 }, { x: 1, y: 4 }, { x: 0, y: 4 }
-        ]
-    }
-};
+
 
 /**
  * Convierte un grid de Firestore a Cell[][]
@@ -165,30 +90,22 @@ async function markLevelAsPlayed(levelId: string): Promise<void> {
 export async function loadLevelByNumber(levelNumber: number): Promise<Level> {
     try {
         const levelsRef = collection(db, 'levels');
-        const difficulties: Difficulty[] = ['easy', 'normal', 'hard', 'extreme'];
-        const targetDifficulty = difficulties[(levelNumber - 1) % difficulties.length];
 
-        // Buscar por dificultad
+        // Buscar directamente por el campo 'level' (numeración secuencial)
         const levelQuery = query(
             levelsRef,
-            where('difficulty', '==', targetDifficulty)
+            where('level', '==', levelNumber)
         );
 
         const querySnapshot = await getDocs(levelQuery);
 
         if (querySnapshot.empty) {
-            // Si no hay niveles en Firestore, usar modo desarrollo
-            console.log('No se encontraron niveles en Firestore, usando modo desarrollo');
-            return loadDevLevel(levelNumber);
+            // Si no hay niveles en Firestore, lanzar error
+            throw new Error(`No se encontró el nivel ${levelNumber} en Firestore`);
         }
 
-        // Obtener todos los documentos de la dificultad
-        const docs = querySnapshot.docs;
-
-        // Seleccionar el nivel basado en el número (usando módulo para distribuir)
-        const levelIndex = Math.floor((levelNumber - 1) / difficulties.length) % docs.length;
-        const doc = docs[levelIndex];
-
+        // Obtener el documento del nivel específico
+        const doc = querySnapshot.docs[0];
         const levelId = doc.id;
         const levelData = doc.data() as FirestoreLevel;
 
@@ -209,37 +126,11 @@ export async function loadLevelByNumber(levelNumber: number): Promise<Level> {
 
     } catch (error) {
         console.error('Error al cargar nivel desde Firestore:', error);
-        // Fallback a modo desarrollo
-        console.log('Fallback a modo desarrollo para nivel', levelNumber);
-        return loadDevLevel(levelNumber);
+        throw new Error(`No se pudo cargar el nivel ${levelNumber}: ${error}`);
     }
 }
 
-/**
- * Carga un nivel de desarrollo local por número
- */
-function loadDevLevel(levelNumber: number): Level {
-    const difficulties: Difficulty[] = ['easy', 'normal', 'hard', 'extreme'];
-    const difficulty = difficulties[(levelNumber - 1) % difficulties.length];
-    const devLevel = devLevels[difficulty];
 
-    // Crear un ID único para el nivel de desarrollo
-    const devLevelId = `dev_${difficulty}_${levelNumber}`;
-
-    // Convertir el grid a formato Cell
-    const cellGrid = convertGridToCells(devLevel.grid);
-
-    const level: Level = {
-        id: devLevelId,
-        difficulty: devLevel.difficulty,
-        gridSize: devLevel.gridSize,
-        grid: cellGrid,
-        solution: devLevel.solution
-    };
-
-    console.log(`Nivel de desarrollo cargado: ${level.id} (${difficulty}) - Nivel ${levelNumber}`);
-    return level;
-}
 
 /**
  * Carga el siguiente nivel disponible según el progreso del usuario
@@ -303,6 +194,28 @@ export async function getPlayedLevelsCount(): Promise<number> {
         return playedLevels.length;
     } catch (error) {
         console.error('Error al obtener cantidad de niveles jugados:', error);
+        return 0;
+    }
+}
+
+/**
+ * Obtiene el número máximo de nivel disponible de forma eficiente
+ */
+export async function getMaxLevelNumber(): Promise<number> {
+    try {
+        const levelsRef = collection(db, 'levels');
+        const maxLevelQuery = query(levelsRef, orderBy('level', 'desc'), limit(1));
+        const querySnapshot = await getDocs(maxLevelQuery);
+
+        if (querySnapshot.empty) {
+            return 0;
+        }
+
+        const doc = querySnapshot.docs[0];
+        const data = doc.data() as DocumentData;
+        return (data.level as number) || 0;
+    } catch (error) {
+        console.error('Error obteniendo nivel máximo:', error);
         return 0;
     }
 } 

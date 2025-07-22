@@ -1,211 +1,158 @@
-# 🎮 Generador de Niveles PuzzlePath
+# 🎮 Generador de Producción para PuzzlePath
 
-Generador de niveles para el juego PuzzlePath usando IA (DeepSeek) que crea niveles NxN con caminos continuos válidos.
+Generador robusto de puzzles tipo Zip para producción, con integración automática a Firebase y numeración secuencial de niveles.
 
-## 🚀 Características
+## 🚀 Características Principales
 
-- ✅ Generación de niveles usando IA (DeepSeek)
-- ✅ Validación automática de caminos continuos
-- ✅ Múltiples dificultades (easy, normal, hard, expert)
-- ✅ Integración con Firebase Firestore
-- ✅ Generador de fallback para casos de error
-- ✅ CLI con opciones configurables
+- ✅ **Sin IA** - Algoritmos puros de Python
+- ✅ **Integración Firebase** - Subida automática a la base de datos
+- ✅ **Numeración automática** - Asigna números de nivel secuenciales
+- ✅ **Validación completa** - Verifica que los puzzles sean solucionables
+- ✅ **CLI completo** - Interfaz de línea de comandos con opciones
+- ✅ **Formato compatible** - Salida estándar para el juego PuzzlePath
 
 ## 📋 Requisitos
 
 - Python 3.8+
-- API Key de DeepSeek
 - Firebase Admin SDK configurado
+- Archivo `service-account-key.json` en el directorio
 
-## 🛠️ Instalación
+## 🛠️ Instalación Rápida
 
-1. **Clonar y navegar al directorio:**
+1. **Configurar entorno:**
 ```bash
-cd python_generator
+python setup.py
 ```
 
-2. **Crear entorno virtual:**
+2. **Generar un puzzle:**
 ```bash
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# o
-venv\Scripts\activate     # Windows
+python production_generator.py
 ```
 
-3. **Instalar dependencias:**
+## 🎯 Uso Básico
+
+### Generar y subir un puzzle
 ```bash
-pip install -r requirements.txt
+python production_generator.py
 ```
 
-4. **Configurar variables de entorno:**
+### Generar múltiples puzzles
 ```bash
-cp env.example .env
-# Editar .env con tu DEEPSEEK_API_KEY
+python production_generator.py --count 5
 ```
 
-## 🔧 Configuración
-
-### Variables de Entorno (.env)
-
+### Generar puzzle específico
 ```bash
-# API Key de DeepSeek (requerido)
-DEEPSEEK_API_KEY=your_deepseek_api_key_here
-
-# Configuración de Firebase
-FIREBASE_PROJECT_ID=pathly-68c8a
-
-# Configuración de generación
-DEFAULT_DIFFICULTY=normal
-DEFAULT_COUNT=1
+python production_generator.py --size 6 --numbers 6
 ```
 
-### Firebase Setup
-
-1. Descarga tu `service-account-key.json` desde Firebase Console
-2. Colócalo en el directorio `python_generator/`
-
-## 🎯 Uso
-
-### Generar un nivel simple
-
+### Generar sin subir a Firebase
 ```bash
-python generate_levels.py
+python production_generator.py --no-upload
 ```
 
-### Generar múltiples niveles
+## 📊 Opciones Disponibles
 
 ```bash
-python generate_levels.py --count 5 --difficulty normal
+python production_generator.py [OPCIONES]
+
+Opciones:
+  --size SIZE        Tamaño de la matriz (3-8, default: 4)
+  --numbers NUMBERS  Número de números en el puzzle (2-N², default: 4)
+  --count COUNT      Número de puzzles a generar (default: 1)
+  --output OUTPUT    Archivo de salida (opcional)
+  --no-upload        No subir a Firebase (solo generar)
+  --seed SEED        Semilla para reproducibilidad
 ```
 
-### Subir a Firebase
+## 📁 Estructura del Proyecto
 
-```bash
-python generate_levels.py --count 3 --difficulty hard --upload
+```
+python_generator/
+├── production_generator.py    # Generador principal
+├── setup.py                   # Script de configuración
+├── test_production.py         # Script de pruebas
+├── README_PUZZLE_GENERATOR.md # Documentación completa
+├── service-account-key.json   # Credenciales Firebase
+├── requirements.txt           # Dependencias
+└── venv/                     # Entorno virtual
 ```
 
-### Guardar en archivo
+## 🔍 Algoritmo
 
-```bash
-python generate_levels.py --count 2 --difficulty easy --output levels.json
-```
-
-### Opciones disponibles
-
-```bash
-python generate_levels.py --help
-```
-
-**Opciones:**
-- `--count`: Número de niveles a generar (default: 1)
-- `--difficulty`: Dificultad (easy, normal, hard, expert)
-- `--upload`: Subir niveles a Firebase
-- `--output`: Archivo de salida para guardar niveles
+1. **Creación de Matriz** - Genera matriz NxN vacía
+2. **Selección de Puntos** - Punto de inicio y fin aleatorios
+3. **Búsqueda de Camino** - Algoritmo de backtracking optimizado
+4. **Validación** - Verifica camino continuo y números en orden
+5. **Numeración** - Asigna número de nivel secuencial
+6. **Subida** - Convierte formato y sube a Firebase
 
 ## 📊 Dificultades
 
-| Dificultad | Grid | Números | Complejidad |
-|------------|------|---------|-------------|
-| Easy       | 4x4  | 3-4     | Baja        |
-| Normal     | 5x5  | 4-5     | Media       |
-| Hard       | 6x6  | 5-6     | Alta        |
-| Expert     | 7x7  | 6-7     | Muy alta    |
+| Dificultad | Tamaño | Números | Complejidad |
+|------------|--------|---------|-------------|
+| Muy Fácil  | 3x3    | 3       | Muy baja     |
+| Fácil      | 4x4    | 4       | Baja         |
+| Normal     | 5x5    | 5       | Media        |
+| Difícil    | 6x6    | 6       | Alta         |
+| Extremo    | 7x7+   | 7+      | Muy alta     |
 
 ## 🧪 Testing
 
-Ejecutar pruebas del generador:
-
 ```bash
-python test_generator.py
+# Probar generador
+python test_production.py
+
+# Probar sin subir a Firebase
+python production_generator.py --no-upload
 ```
 
-## 🚨 Solución de Problemas
-
-### Error: "The query requires an index"
-
-Si ves este error en la app, significa que Firestore necesita un índice compuesto. **Solución:**
-
-1. **Opción 1: Crear el índice automáticamente**
-   - Haz clic en el enlace que aparece en el error
-   - O ve a: https://console.firebase.google.com/v1/r/project/pathly-68c8a/firestore/indexes
-   - Crea el índice compuesto para `difficulty` y `createdAt`
-
-2. **Opción 2: Usar el script de configuración rápida**
-   ```bash
-   python setup_levels.py
-   ```
-   Este script genera y sube niveles sin requerir índices complejos.
-
-### Error: "Nested arrays are not allowed"
-
-Este error ocurre al subir niveles a Firestore. **Solución:**
-
-El generador ya convierte automáticamente los arrays anidados al formato correcto de Firestore:
-- Grid: `[[1,2],[3,4]]` → `{"0": [1,2], "1": [3,4]}`
-- Solution: `[[0,0],[1,1]]` → `[{"x": 0, "y": 0}, {"x": 1, "y": 1}]`
-
-## 📁 Estructura del Nivel
+## 📝 Ejemplo de Salida
 
 ```json
 {
   "difficulty": "normal",
-  "gridSize": 5,
+  "gridSize": 4,
+  "level": 1,
   "grid": [
-    [1, 0, 0, 0, 0],
-    [0, 2, 0, 0, 0],
-    [0, 0, 3, 0, 0],
-    [0, 0, 0, 4, 0],
-    [0, 0, 0, 0, 5]
+    [1, 0, 0, 0],
+    [0, 2, 0, 0],
+    [0, 0, 3, 0],
+    [4, 0, 0, 0]
   ],
   "solution": [
-    [0, 0], [0, 1], [0, 2], [0, 3], [0, 4],
-    [1, 4], [1, 3], [1, 2], [1, 1], [1, 0],
-    [2, 0], [2, 1], [2, 2], [2, 3], [2, 4],
-    [3, 4], [3, 3], [3, 2], [3, 1], [3, 0],
-    [4, 0], [4, 1], [4, 2], [4, 3], [4, 4]
+    [0,0], [0,1], [0,2], [0,3], [1,3], [1,2], [1,1], [1,0],
+    [2,0], [2,1], [2,2], [2,3], [3,3], [3,2], [3,1], [3,0]
   ]
 }
 ```
 
-## 🔍 Validación
+## 🔥 Integración Firebase
 
-El generador valida automáticamente:
+- **Numeración automática**: Obtiene el siguiente número de nivel disponible
+- **Formato compatible**: Convierte arrays a formato Firestore
+- **Metadatos**: Añade timestamps y estado activo
+- **IDs únicos**: Genera IDs con formato `level_XXXX`
 
-- ✅ Camino continuo (celdas adyacentes)
-- ✅ Uso de todas las celdas del grid
-- ✅ Números en orden secuencial (1 → 2 → 3 → ... → N)
-- ✅ Número 1 al inicio y N al final
-- ✅ Sin bifurcaciones o caminos inválidos
+## 🚨 Limitaciones
 
-## 🚨 Fallback
+- **Puzzles grandes**: Para matrices 7x7+ puede tardar más tiempo
+- **Complejidad**: Algunas configuraciones pueden no tener solución
+- **Firebase**: Requiere conexión a internet para subir
 
-Si la IA falla, el generador usa un algoritmo de espiral simple que garantiza niveles válidos.
+## 📄 Documentación Completa
 
-## 📝 Logs
+Para más detalles, consulta: [README_PUZZLE_GENERATOR.md](README_PUZZLE_GENERATOR.md)
 
-El generador muestra logs detallados:
+## 🤝 Integración con el Juego
 
-```
-🎮 Generando 3 nivel(es) de dificultad 'normal'
-🔄 Generando nivel 1/3...
-✅ Nivel 1 generado exitosamente
-✅ Nivel subido: normal_5_1234
-🔄 Generando nivel 2/3...
-✅ Nivel 2 generado exitosamente
-✅ Nivel subido: normal_5_5678
-🔄 Generando nivel 3/3...
-✅ Nivel 3 generado exitosamente
-✅ Nivel subido: normal_5_9012
-🎉 Proceso completado: 3 nivel(es) generado(s)
-```
+Los puzzles generados son compatibles directamente con PuzzlePath:
 
-## 🤝 Contribuir
-
-1. Fork el proyecto
-2. Crea una rama para tu feature
-3. Commit tus cambios
-4. Push a la rama
-5. Abre un Pull Request
+1. **Formato JSON**: Estructura idéntica a la esperada
+2. **Validación**: Puzzles verificados como solucionables
+3. **Dificultad**: Sistema de dificultad integrado
+4. **Solución**: Camino completo proporcionado
+5. **Numeración**: Niveles secuenciales automáticos
 
 ## 📄 Licencia
 

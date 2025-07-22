@@ -36,6 +36,23 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
     const [hintCell, setHintCell] = useState<Cell | null>(null);
     const gridRef = useRef<View>(null);
 
+    // Validar que la solución sea válida al cargar
+    useEffect(() => {
+        if (solution && solution.length > 0) {
+            const isValidSolution = solution.every((cell, index) => {
+                if (index === 0) {
+                    // La primera celda debe ser el número 1
+                    return grid[cell.y] && grid[cell.y][cell.x] && grid[cell.y][cell.x].value === 1;
+                }
+                return true;
+            });
+
+            if (!isValidSolution) {
+                console.warn('⚠️ La solución no empieza en el número 1');
+            }
+        }
+    }, [solution, grid]);
+
     // Encontrar el número 1 (punto de partida)
     const startCell = grid.flat().find(cell => cell.value === 1);
     // Encontrar el número 4 (punto final)
@@ -105,6 +122,11 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
     };
 
     const addCellToPath = (cell: Cell) => {
+        // Limpiar pista cuando el usuario hace cambios
+        if (hintCell) {
+            setHintCell(null);
+        }
+
         // Verificar si ya está en el camino (retroceder)
         const cellIndex = path.findIndex(pathCell =>
             pathCell.x === cell.x && pathCell.y === cell.y
@@ -120,7 +142,6 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
 
         // Verificar si es válido para añadir
         if (!isCellValidNext(cell)) {
-            console.log('❌ Celda no válida:', cell);
             return;
         }
 
@@ -128,12 +149,6 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
         const newPath = [...path, cell];
         setPath(newPath);
         onPathChange?.(newPath);
-
-        // Debug: Mostrar información del camino
-        const numberedCellsInPath = newPath.filter(c => c.value !== null);
-        const totalCells = grid.length * grid.length;
-        console.log(`✅ Celda añadida: (${cell.x}, ${cell.y}) - Valor: ${cell.value}`);
-        console.log(`📊 Camino: ${newPath.length}/${totalCells} celdas, ${numberedCellsInPath.length} números`);
 
         // Forzar re-render para actualizar las líneas de todas las celdas
         setTimeout(() => {
@@ -229,12 +244,15 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
         const isHintCell = hintCell && hintCell.x === cell.x && hintCell.y === cell.y;
         const isValidNext = isCellValidNext(cell);
 
+
+
         return [
             cell.value !== null && styles.cellWithNumber,
             cell.value === 1 && styles.startCell,
-            isHovered && !isInPath && isValidNext && styles.cellHovered,
-            isHovered && !isInPath && !isValidNext && styles.cellInvalid,
-            isHintCell && !isInPath && styles.cellHint,
+            // La pista tiene prioridad sobre otros estilos
+            isHintCell && styles.cellHint,
+            isHovered && !isInPath && isValidNext && !isHintCell && styles.cellHovered,
+            isHovered && !isInPath && !isValidNext && !isHintCell && styles.cellInvalid,
         ].filter(Boolean);
     };
 
@@ -370,11 +388,9 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
     };
 
     const getHint = (): string => {
-        console.log('🔍 GETTING HINT - Path length:', path.length);
-        console.log('🔍 GETTING HINT - Solution:', solution);
+        console.log('🔍 CALCULANDO PISTA - Camino actual:', path.map(c => `(${c.x},${c.y})`).join(' -> '));
 
         if (!solution || solution.length === 0) {
-            console.log('❌ No hay solución disponible');
             return "No hay solución disponible para este nivel";
         }
 
@@ -403,51 +419,56 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
             return "Error: Has pasado por la misma celda más de una vez";
         }
 
-        // SOLUCIÓN TEMPORAL: En lugar de comparar con la solución exacta,
-        // vamos a guiar al usuario basándonos en los números en el grid
-        const numberedCells = grid.flat().filter(cell => cell.value !== null).sort((a, b) => (a.value || 0) - (b.value || 0));
-        const maxNumber = Math.max(...numberedCells.map(cell => cell.value || 0));
+        // Comparar el camino actual con la solución
+        const lastCorrectIndex = findLastCorrectIndex();
 
-        // Verificar si el camino está completo (todos los números conectados)
-        const numbersInPath = path.filter(cell => cell.value !== null).sort((a, b) => (a.value || 0) - (b.value || 0));
-        const expectedNumbers = numberedCells.slice(0, numbersInPath.length);
-
-        const pathIsCorrect = numbersInPath.every((cell, index) => {
-            const expectedCell = expectedNumbers[index];
-            return cell.value === expectedCell.value;
-        });
-
-        if (!pathIsCorrect) {
-            return "Has tomado un camino incorrecto. Retrocede y prueba otra dirección";
+        if (lastCorrectIndex === -1) {
+            return "El camino es incorrecto desde el inicio. Empieza de nuevo desde el número 1";
         }
 
-        // Si el camino es correcto hasta ahora, sugerir el siguiente número
-        const nextExpectedNumber = numbersInPath.length + 1;
-        if (nextExpectedNumber <= maxNumber) {
-            return `Siguiente: Busca y toca el número ${nextExpectedNumber}`;
+        if (lastCorrectIndex < path.length - 1) {
+            // Hay un error en el camino - el usuario se equivocó
+            return `El camino es correcto hasta el paso ${lastCorrectIndex + 1}. Retrocede hasta esa posición y prueba otra dirección`;
         }
 
-        // Si ya conectó todos los números, verificar si completó el grid
-        const totalCells = grid.length * grid.length;
-        if (path.length === totalCells) {
-            // Verificar si termina en el último número
-            const lastCell = path[path.length - 1];
-            const lastNumberCell = numberedCells.find(cell => cell.value === maxNumber);
+        // El camino es correcto hasta ahora, sugerir la siguiente celda
+        if (path.length < solution.length) {
+            const nextSolutionCell = solution[path.length];
+            return `Siguiente paso: Ve a la celda (${nextSolutionCell.x}, ${nextSolutionCell.y})`;
+        }
 
-            if (lastCell.x === lastNumberCell?.x && lastCell.y === lastNumberCell?.y) {
-                return "¡Nivel completado! Has usado todas las celdas y conectado todos los números.";
+        return "¡Camino completado! Has seguido la solución correcta";
+    };
+
+    // Función para normalizar el formato de coordenadas
+    const normalizeCoordinates = (cell: Cell | { x: number; y: number }): { x: number; y: number } => {
+        return {
+            x: cell.x,
+            y: cell.y
+        };
+    };
+
+    const findLastCorrectIndex = (): number => {
+        if (!solution || path.length === 0) return -1;
+
+        let lastCorrectIndex = -1;
+
+        for (let i = 0; i < Math.min(path.length, solution.length); i++) {
+            const pathCell = normalizeCoordinates(path[i]);
+            const solutionCell = normalizeCoordinates(solution[i]);
+
+            // Invertir x,y del camino para comparar con la solución
+            const pathX = pathCell.y; // Usar y como x
+            const pathY = pathCell.x; // Usar x como y
+
+            if (pathX === solutionCell.x && pathY === solutionCell.y) {
+                lastCorrectIndex = i;
             } else {
-                return `Has usado todas las celdas, pero el camino debe terminar en el número ${maxNumber} (${lastNumberCell?.x},${lastNumberCell?.y}).`;
+                break; // Encontró el primer error
             }
         }
 
-        // Si ya conectó todos los números pero no completó el grid
-        if (nextExpectedNumber > maxNumber) {
-            const remainingCells = totalCells - path.length;
-            return `Has conectado todos los números. Ahora completa el grid visitando las ${remainingCells} celdas restantes.`;
-        }
-
-        return "Continúa conectando los números en orden";
+        return lastCorrectIndex;
     };
 
     const handleHint = () => {
@@ -458,61 +479,55 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
         const suggestedCell = getSuggestedCell();
         setHintCell(suggestedCell);
 
-        // Quitar la iluminación después de 3 segundos
+        // Quitar la iluminación después de 5 segundos para dar más tiempo al usuario
         setTimeout(() => {
             setHintCell(null);
-        }, 3000);
+        }, 5000);
     };
 
     const getSuggestedCell = (): Cell | null => {
+        if (!solution || solution.length === 0) {
+            return null;
+        }
+
         if (path.length === 0) {
             // Si no hay camino, sugerir el número 1
             return grid.flat().find(cell => cell.value === 1) || null;
         }
 
-        // SOLUCIÓN TEMPORAL: Buscar el siguiente número en secuencia
-        const numberedCells = grid.flat().filter(cell => cell.value !== null).sort((a, b) => (a.value || 0) - (b.value || 0));
-        const numbersInPath = path.filter(cell => cell.value !== null).sort((a, b) => (a.value || 0) - (b.value || 0));
-        const nextExpectedNumber = numbersInPath.length + 1;
-        const maxNumber = Math.max(...numberedCells.map(cell => cell.value || 0));
+        // Comparar el camino actual con la solución
+        const lastCorrectIndex = findLastCorrectIndex();
 
-        // Verificar si el camino actual es correcto
-        const pathIsCorrect = numbersInPath.every((cell, index) => {
-            const expectedCell = numberedCells[index];
-            return cell.value === expectedCell.value;
-        });
-
-        if (!pathIsCorrect) {
-            return null; // No sugerir si el camino es incorrecto
+        if (lastCorrectIndex === -1) {
+            // El camino es incorrecto desde el inicio, sugerir el número 1
+            return grid.flat().find(cell => cell.value === 1) || null;
         }
 
-        // Buscar el siguiente número
-        const nextNumberCell = numberedCells.find(cell => cell.value === nextExpectedNumber);
-        if (nextNumberCell) {
-            return nextNumberCell;
+        if (lastCorrectIndex < path.length - 1) {
+            // Hay un error en el camino - iluminar la última celda correcta para que retroceda
+            const lastCorrectCell = path[lastCorrectIndex];
+            return lastCorrectCell;
         }
 
-        // Si ya conectó todos los números, sugerir celdas adyacentes vacías
-        if (nextExpectedNumber > maxNumber) {
-            const lastCell = path[path.length - 1];
-            const adjacentCells = [];
-            const gridSize = grid.length;
+        // El camino es correcto hasta ahora - iluminar la siguiente celda de la solución
+        if (path.length < solution.length) {
+            const nextSolutionCell = solution[path.length];
 
-            for (let y = 0; y < gridSize; y++) {
-                for (let x = 0; x < gridSize; x++) {
-                    const cell = grid[y][x];
-                    const isVisited = path.some(pathCell => pathCell.x === cell.x && pathCell.y === cell.y);
+            // Invertir coordenadas para acceso al grid
+            const gridY = nextSolutionCell.x; // Usar x de solución como y del grid
+            const gridX = nextSolutionCell.y; // Usar y de solución como x del grid
 
-                    if (isCellAdjacent(cell, lastCell) && !isVisited) {
-                        adjacentCells.push(cell);
-                    }
-                }
+            // Verificar que las coordenadas estén dentro del grid
+            if (gridY >= 0 && gridY < grid.length &&
+                gridX >= 0 && gridX < grid[0].length) {
+                const nextCell = grid[gridY][gridX];
+                return nextCell;
+            } else {
+                return null;
             }
-
-            return adjacentCells[0] || null;
         }
 
-        return null;
+        return null; // Ya completó el camino
     };
 
     const gridSize = grid.length;
@@ -637,12 +652,13 @@ const styles = StyleSheet.create({
     cellHint: {
         backgroundColor: '#FEF3C7',
         borderColor: '#F59E0B',
-        borderWidth: 3,
+        borderWidth: 4,
         shadowColor: '#F59E0B',
         shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.5,
-        shadowRadius: 8,
-        elevation: 5,
+        shadowOpacity: 0.8,
+        shadowRadius: 12,
+        elevation: 8,
+        transform: [{ scale: 1.05 }], // Hacer la celda ligeramente más grande
     },
     numberContainer: {
         position: 'absolute',

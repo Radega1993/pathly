@@ -33,25 +33,16 @@ const GameScreen: React.FC<GameScreenProps> = ({ level, onBack, onLevelComplete 
     // Usar el grid del nivel de Firestore
     const [gridData] = useState<Cell[][]>(() => level.grid);
 
-    // Log de la solución al cargar el nivel
+    // Validar la solución al cargar el nivel
     useEffect(() => {
-        console.log('🔍 SOLUCIÓN DEL NIVEL:', level.solution);
-        console.log('📊 Grid del nivel:', level.gridSize, 'x', level.gridSize);
-        console.log('🎯 Números en el grid:', level.grid.flat().filter(cell => cell.value !== null).map(cell => cell.value));
-
-        // Mostrar dónde están los números en el grid
-        const numberedCells = level.grid.flat().filter(cell => cell.value !== null);
-        console.log('📍 Posiciones de números:');
-        numberedCells.forEach(cell => {
-            console.log(`   Número ${cell.value} en posición (${cell.x}, ${cell.y})`);
-        });
-
         // Verificar si el número 1 está en la primera posición de la solución
+        const numberedCells = level.grid.flat().filter(cell => cell.value !== null);
         const firstSolutionCell = level.solution[0];
         const numberOneCell = numberedCells.find(cell => cell.value === 1);
-        console.log('🔍 Primera celda de solución:', firstSolutionCell);
-        console.log('🔍 Celda con número 1:', numberOneCell);
-        console.log('🔍 ¿Coinciden?:', numberOneCell && numberOneCell.x === firstSolutionCell.x && numberOneCell.y === firstSolutionCell.y);
+
+        if (numberOneCell && (numberOneCell.x !== firstSolutionCell.x || numberOneCell.y !== firstSolutionCell.y)) {
+            console.warn('⚠️ El número 1 no coincide con la primera celda de la solución');
+        }
     }, [level]);
 
     // Inicializar progreso al cargar el nivel
@@ -72,7 +63,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ level, onBack, onLevelComplete 
             const completedCount = await getCompletedLevelsCount();
             setTotalCompletedLevels(completedCount);
 
-            console.log(`Nivel ${level.id} - Ya completado: ${wasCompleted}, Total completados: ${completedCount}`);
+
         } catch (error) {
             console.error('Error inicializando progreso del nivel:', error);
         }
@@ -80,39 +71,21 @@ const GameScreen: React.FC<GameScreenProps> = ({ level, onBack, onLevelComplete 
 
     const handlePathChange = (path: Cell[]) => {
         setCurrentPath(path);
-        console.log('Camino actual:', path.map(cell => `(${cell.x},${cell.y})`).join(' -> '));
     };
 
     const handleReset = () => {
         setResetCount(prev => prev + 1);
         setCurrentHint('');
-        console.log('Nivel reiniciado');
     };
 
     const handleHint = (hint: string) => {
         setCurrentHint(hint);
-        console.log('Pista:', hint);
     };
 
     const isPathComplete = () => {
         if (currentPath.length === 0) return false;
 
-        // Debug: Mostrar información de validación
-        const lastCell = currentPath[currentPath.length - 1];
-        const numberedCells = gridData.flat().filter(cell => cell.value !== null && cell.value > 0);
-        const maxNumber = Math.max(...numberedCells.map(cell => cell.value || 0));
-        const lastNumberCell = numberedCells.find(cell => cell.value === maxNumber);
-
-        console.log('🔍 VALIDACIÓN DEL CAMINO:');
-        console.log('   Última celda del camino:', lastCell);
-        console.log('   Último número esperado:', maxNumber);
-        console.log('   Celda del último número:', lastNumberCell);
-        console.log('   ¿Coinciden?:', lastCell.x === lastNumberCell?.x && lastCell.y === lastNumberCell?.y);
-        console.log('   ¿Valor de última celda es correcto?:', lastCell.value === maxNumber);
-
         const isValid = validatePath(gridData, currentPath);
-        console.log('   Resultado de validación:', isValid);
-
         return isValid;
     };
 
@@ -127,7 +100,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ level, onBack, onLevelComplete 
                 setTotalCompletedLevels(newCompletedCount);
                 setIsLevelAlreadyCompleted(true);
 
-                console.log(`¡Nivel ${level.id} completado! Total completados: ${newCompletedCount}`);
+
 
                 // Mostrar alerta de éxito
                 Alert.alert(

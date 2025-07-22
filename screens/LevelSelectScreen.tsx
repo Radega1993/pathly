@@ -10,7 +10,7 @@ import {
     ActivityIndicator,
     Alert,
 } from 'react-native';
-import { loadLevelFromFirestore, loadLevelByNumber, getPlayedLevelsCount, resetGameProgress } from '../services/levelService';
+import { loadLevelFromFirestore, loadLevelByNumber, getPlayedLevelsCount, getMaxLevelNumber, resetGameProgress } from '../services/levelService';
 import { Level as FirestoreLevel, Difficulty } from '../types/level';
 import {
     getCompletedLevelsCount,
@@ -27,6 +27,7 @@ interface Level {
     isCompleted: boolean;
     isCurrent: boolean;
     gridSize: number;
+    isComingSoon?: boolean;
 }
 
 interface LevelSelectScreenProps {
@@ -67,24 +68,76 @@ const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, on
 
             console.log(`Progreso local: ${localCompletedCount} niveles completados, último jugado: ${lastLevelPlayed}`);
 
-            // Cargar niveles secuenciales (1, 2, 3, 4, 5, 6, 7, 8...)
+            // Cargar niveles de forma optimizada
             const loadedLevels: Level[] = [];
-            const maxLevels = 12; // Cargar hasta 12 niveles
+            const levelsToLoad = 12; // Cargar solo 12 niveles para mostrar
+            const startLevel = Math.max(1, localCompletedCount - 2); // Empezar 2 niveles antes del progreso
 
-            for (let levelNumber = 1; levelNumber <= maxLevels; levelNumber++) {
-                try {
-                    const level = await loadLevelByNumber(levelNumber);
-                    loadedLevels.push({
-                        id: level.id,
-                        difficulty: level.difficulty,
-                        gridSize: level.gridSize,
-                        isUnlocked: true, // Se determinará después
-                        isCompleted: false, // Se determinará después
-                        isCurrent: false, // Se determinará después
-                    });
-                } catch (error) {
-                    console.warn(`No se pudo cargar nivel ${levelNumber}:`, error);
+            // Obtener el nivel máximo disponible de forma eficiente
+            const maxLevel = await getMaxLevelNumber();
+            console.log(`Nivel máximo disponible: ${maxLevel}`);
+
+            // Determinar hasta qué nivel cargar
+            const endLevel = Math.min(startLevel + levelsToLoad - 1, maxLevel);
+            const actualLevelsToLoad = endLevel - startLevel + 1;
+
+            if (actualLevelsToLoad > 0) {
+                // Cargar niveles en paralelo para mejor performance
+                const levelPromises = [];
+                for (let i = 0; i < actualLevelsToLoad; i++) {
+                    const levelNumber = startLevel + i;
+                    levelPromises.push(
+                        loadLevelByNumber(levelNumber)
+                            .then(level => ({
+                                level,
+                                index: i,
+                                levelNumber
+                            }))
+                            .catch(error => ({
+                                error,
+                                index: i,
+                                levelNumber
+                            }))
+                    );
                 }
+
+                const results = await Promise.all(levelPromises);
+
+                // Procesar resultados
+                for (let i = 0; i < results.length; i++) {
+                    const result = results[i];
+
+                    if ('level' in result) {
+                        // Nivel válido encontrado
+                        loadedLevels.push({
+                            id: result.level.id,
+                            difficulty: result.level.difficulty,
+                            gridSize: result.level.gridSize,
+                            isUnlocked: true, // Se determinará después
+                            isCompleted: false, // Se determinará después
+                            isCurrent: false, // Se determinará después
+                        });
+                    }
+                }
+            }
+
+            // Agregar nivel "Próximamente" si hay niveles cargados y no estamos en el máximo
+            if (loadedLevels.length > 0 && endLevel < maxLevel) {
+                loadedLevels.push({
+                    id: `coming_soon_${endLevel + 1}`,
+                    difficulty: 'normal',
+                    gridSize: 5,
+                    isUnlocked: false,
+                    isCompleted: false,
+                    isCurrent: false,
+                    isComingSoon: true,
+                });
+            }
+
+            if (loadedLevels.length === 0) {
+                setError('No hay niveles disponibles en la base de datos.');
+                setLoading(false);
+                return;
             }
 
             // Obtener niveles completados desde Firestore (para compatibilidad)
@@ -94,6 +147,10 @@ const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, on
             // Determinar estado de cada nivel usando progreso local
             const updatedLevels = await Promise.all(
                 loadedLevels.map(async (level, index) => {
+                    if (level.isComingSoon) {
+                        return level; // Mantener nivel "Próximamente" como está
+                    }
+
                     // Verificar si está completado usando el almacenamiento local
                     const isCompleted = await isLevelCompleted(level.id);
                     const isUnlocked = isCompleted || index === localCompletedCount; // Solo el siguiente nivel está desbloqueado
@@ -120,6 +177,15 @@ const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, on
     };
 
     const handleLevelPress = async (level: Level) => {
+        if (level.isComingSoon) {
+            Alert.alert(
+                '⏳ Próximamente',
+                'Este nivel estará disponible en una próxima actualización.',
+                [{ text: 'OK' }]
+            );
+            return;
+        }
+
         if (!level.isUnlocked) {
             Alert.alert(
                 'Nivel Bloqueado',
@@ -208,7 +274,7 @@ const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, on
         const difficultyColor = getDifficultyColor(level.difficulty);
 
         return (
-            <View key={level.id} style={styles.levelContainer}>
+            <View key={`level-${index + 1}`} style={styles.levelContainer}>
                 {/* Línea del camino (excepto para el último nivel) */}
                 {!isLast && (
                     <View style={[styles.pathLine, { backgroundColor: difficultyColor }]} />
@@ -221,13 +287,14 @@ const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, on
                         { borderColor: difficultyColor },
                         level.isCurrent && [styles.currentLevel, { backgroundColor: difficultyColor }],
                         !level.isUnlocked && styles.lockedLevel,
+                        level.isComingSoon && styles.comingSoonLevel,
                     ]}
                     onPress={() => handleLevelPress(level)}
-                    disabled={!level.isUnlocked}
+                    disabled={!level.isUnlocked || level.isComingSoon}
                 >
                     {/* Emoji de dificultad */}
                     <Text style={styles.difficultyEmoji}>
-                        {getDifficultyEmoji(level.difficulty)}
+                        {level.isComingSoon ? '⏳' : getDifficultyEmoji(level.difficulty)}
                     </Text>
 
                     {/* Número del nivel */}
@@ -235,8 +302,9 @@ const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, on
                         styles.levelNumber,
                         level.isCurrent && styles.currentLevelText,
                         !level.isUnlocked && styles.lockedLevelText,
+                        level.isComingSoon && styles.comingSoonText,
                     ]}>
-                        {index + 1}
+                        {level.isComingSoon ? '?' : index + 1}
                     </Text>
 
                     {/* Tick de completado */}
@@ -247,19 +315,26 @@ const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, on
                     )}
 
                     {/* Cartel de bloqueado */}
-                    {!level.isUnlocked && (
+                    {!level.isUnlocked && !level.isComingSoon && (
                         <View style={styles.lockedBadge}>
                             <Text style={styles.lockedText}>🔒</Text>
+                        </View>
+                    )}
+
+                    {/* Cartel de próximamente */}
+                    {level.isComingSoon && (
+                        <View style={styles.comingSoonBadge}>
+                            <Text style={styles.comingSoonText}>⏳</Text>
                         </View>
                     )}
                 </TouchableOpacity>
 
                 {/* Información de dificultad */}
                 <Text style={[styles.difficultyText, { color: difficultyColor }]}>
-                    {getDifficultyText(level.difficulty)}
+                    {level.isComingSoon ? 'Próximamente' : getDifficultyText(level.difficulty)}
                 </Text>
                 <Text style={styles.gridSizeText}>
-                    {level.gridSize}x{level.gridSize}
+                    {level.isComingSoon ? 'Nuevo nivel' : `${level.gridSize}x${level.gridSize}`}
                 </Text>
             </View>
         );
@@ -349,13 +424,15 @@ const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, on
                     Los niveles se desbloquean progresivamente según tu progreso
                 </Text>
 
-                {/* Botón temporal de reset */}
+                {/* Botón temporal de reset - Comentado para MVP */}
+                {/* 
                 <TouchableOpacity
                     style={styles.resetButton}
                     onPress={handleResetProgress}
                 >
                     <Text style={styles.resetButtonText}>🔄 Resetear Progreso</Text>
                 </TouchableOpacity>
+                */}
             </View>
         </SafeAreaView>
     );
@@ -514,6 +591,11 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 10,
         fontWeight: 'bold',
+    },
+    comingSoonLevel: {
+        backgroundColor: '#F3F4F6',
+        borderColor: '#9CA3AF',
+        opacity: 0.7,
     },
     footer: {
         padding: 20,

@@ -46,6 +46,8 @@ export default function App() {
                   <Text style={styles.menuButtonText}>🎯 Jugar</Text>
                 </TouchableOpacity>
 
+                {/* Botones para futuras versiones - Comentados para MVP */}
+                {/*
                 <TouchableOpacity style={styles.menuButton}>
                   <Text style={styles.menuButtonText}>⚙️ Configuración</Text>
                 </TouchableOpacity>
@@ -53,11 +55,15 @@ export default function App() {
                 <TouchableOpacity style={styles.menuButton}>
                   <Text style={styles.menuButtonText}>📊 Estadísticas</Text>
                 </TouchableOpacity>
+                */}
               </View>
 
               <View style={styles.stats}>
                 <Text style={styles.statsText}>
-                  ¡Completa niveles para desbloquear más!
+                  🎮 Conecta los números en orden para completar cada nivel
+                </Text>
+                <Text style={styles.statsSubText}>
+                  ¡Nuevos niveles disponibles cada semana!
                 </Text>
               </View>
             </View>
@@ -147,5 +153,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#374151',
     textAlign: 'center',
+  },
+  statsSubText: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginTop: 8,
   },
 });
