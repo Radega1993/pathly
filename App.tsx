@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, View, Text, SafeAreaView, TouchableOpacity } from 'react-native';
 import LevelSelectScreen from './screens/LevelSelectScreen';
 import GameScreen from './screens/GameScreen';
+import Logo from './components/Logo';
 import { Level } from './types/level';
 
 type AppScreen = 'menu' | 'levelSelect' | 'game';
@@ -35,13 +36,17 @@ export default function App() {
         return (
           <SafeAreaView style={styles.container}>
             <View style={styles.menuContainer}>
-              <Text style={styles.title}>🎮 Pathly</Text>
-              <Text style={styles.subtitle}>Conecta los números en orden</Text>
+              {/* Logo principal */}
+              <View style={styles.logoContainer}>
+                <Logo size="medium" showTitle={false} showSubtitle={false} />
+              </View>
 
+              {/* Botón de jugar */}
               <View style={styles.menuButtons}>
                 <TouchableOpacity
                   style={styles.menuButton}
                   onPress={() => setCurrentScreen('levelSelect')}
+                  activeOpacity={0.8}
                 >
                   <Text style={styles.menuButtonText}>🎯 Jugar</Text>
                 </TouchableOpacity>
@@ -58,13 +63,26 @@ export default function App() {
                 */}
               </View>
 
-              <View style={styles.stats}>
-                <Text style={styles.statsText}>
-                  🎮 Conecta los números en orden para completar cada nivel
-                </Text>
-                <Text style={styles.statsSubText}>
-                  ¡Nuevos niveles disponibles cada semana!
-                </Text>
+              {/* Información del juego */}
+              <View style={styles.gameInfo}>
+                <View style={styles.infoCard}>
+                  <Text style={styles.infoTitle}>🎮 Cómo jugar</Text>
+                  <Text style={styles.infoText}>
+                    Conecta los números en orden para completar cada nivel
+                  </Text>
+                </View>
+
+                <View style={styles.infoCard}>
+                  <Text style={styles.infoTitle}>🚀 Nuevos niveles</Text>
+                  <Text style={styles.infoText}>
+                    ¡Nuevos niveles disponibles cada semana!
+                  </Text>
+                </View>
+              </View>
+
+              {/* Footer */}
+              <View style={styles.footer}>
+                <Text style={styles.footerText}>Versión 1.0.0</Text>
               </View>
             </View>
           </SafeAreaView>
@@ -103,61 +121,77 @@ const styles = StyleSheet.create({
   menuContainer: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     padding: 20,
   },
-  title: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#3B82F6',
-    marginBottom: 10,
-  },
-  subtitle: {
-    fontSize: 18,
-    color: '#6B7280',
-    marginBottom: 60,
-    textAlign: 'center',
+  logoContainer: {
+    alignItems: 'center',
+    marginTop: 40,
+    marginBottom: 20,
   },
   menuButtons: {
     width: '100%',
     maxWidth: 300,
+    marginBottom: 40,
   },
   menuButton: {
     backgroundColor: '#3B82F6',
-    paddingVertical: 20,
+    paddingVertical: 18,
     paddingHorizontal: 30,
     borderRadius: 15,
-    marginBottom: 20,
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: '#3B82F6',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 4,
     },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   menuButtonText: {
     color: '#FFFFFF',
     fontSize: 20,
     fontWeight: 'bold',
   },
-  stats: {
-    marginTop: 40,
-    padding: 20,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 10,
+  gameInfo: {
+    width: '100%',
+    maxWidth: 350,
+    marginBottom: 20,
   },
-  statsText: {
+  infoCard: {
+    backgroundColor: '#F8FAFC',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#3B82F6',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  infoTitle: {
     fontSize: 16,
-    color: '#374151',
-    textAlign: 'center',
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: 4,
   },
-  statsSubText: {
+  infoText: {
     fontSize: 14,
     color: '#6B7280',
-    textAlign: 'center',
-    marginTop: 8,
+    lineHeight: 20,
+  },
+  footer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  footerText: {
+    fontSize: 12,
+    color: '#9CA3AF',
   },
 });
