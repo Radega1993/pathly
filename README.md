@@ -15,6 +15,9 @@ Un juego de puzzle donde debes conectar números en orden trazando un camino en 
 - 🔧 **Generador de niveles** en Python
 - 📱 **Multiplataforma** (Android, iOS, Web)
 - 🛡️ **Validaciones robustas** y manejo de errores
+- 🎨 **Logo oficial de Pathly Game** integrado
+- 🏠 **Pantalla de inicio rediseñada** con mejor UX
+- 📱 **Iconos personalizados** para Google Play
 
 ## 🚀 Stack Tecnológico
 
@@ -50,8 +53,10 @@ npm run web
 ## 🎮 Pantallas del Juego
 
 ### 🏠 Pantalla Principal
-- **Menú principal** con opciones de juego, configuración y estadísticas
-- **Estadísticas** de niveles completados
+- **Logo oficial de Pathly Game** prominente y centrado
+- **Menú principal** con botón de juego destacado
+- **Información del juego** organizada en tarjetas
+- **Diseño moderno** con sombras y efectos visuales
 - **Navegación** fluida entre pantallas
 
 ### 🗺️ Pantalla de Selección de Niveles
@@ -235,13 +240,21 @@ Conectar todos los números en orden (1 → 2 → 3 → 4) usando **TODAS** las 
 ```
 Pathly/
 ├── components/          # Componentes UI reutilizables
-│   └── Grid.tsx        # Componente principal del grid
+│   ├── Grid.tsx        # Componente principal del grid
+│   └── Logo.tsx        # Componente de logo reutilizable
 ├── screens/            # Pantallas de la aplicación
 │   ├── LevelSelectScreen.tsx  # Pantalla de selección de niveles
 │   └── GameScreen.tsx         # Pantalla de juego individual
 ├── services/           # Servicios (Firebase, etc.)
 ├── utils/              # Utilidades y helpers
 │   └── validatePath.ts # Validación de caminos
+├── assets/             # Recursos gráficos
+│   ├── logo.png        # Logo oficial de Pathly Game
+│   ├── icon.png        # Icono principal de la app
+│   └── ...             # Otros iconos y recursos
+├── scripts/            # Scripts de automatización
+│   ├── update-with-official-logo.js
+│   └── verify-logo-only.js
 ├── store/              # Estado global (Zustand/Context)
 ├── App.tsx             # Componente principal con navegación
 └── README.md           # Documentación
