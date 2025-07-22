@@ -1,15 +1,29 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, SafeAreaView, TouchableOpacity } from 'react-native';
 import LevelSelectScreen from './screens/LevelSelectScreen';
 import GameScreen from './screens/GameScreen';
 import Logo from './components/Logo';
 import { Level } from './types/level';
+import { adsManager } from './services/ads';
 
 type AppScreen = 'menu' | 'levelSelect' | 'game';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<AppScreen>('menu');
   const [selectedLevel, setSelectedLevel] = useState<Level | null>(null);
+
+  // Inicializar sistema de anuncios al cargar la app
+  useEffect(() => {
+    const initializeAds = async () => {
+      try {
+        await adsManager.initialize();
+      } catch (error) {
+        console.error('Error initializing ads:', error);
+      }
+    };
+
+    initializeAds();
+  }, []);
 
   const handleLevelSelect = (level: Level) => {
     setSelectedLevel(level);

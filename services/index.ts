@@ -21,6 +21,18 @@ export {
     clearProgress
 } from './storage';
 
+// Exportar funciones del servicio de anuncios
+export {
+    showInterstitialAd,
+    showRewardedAd,
+    incrementLevelsCompleted,
+    shouldShowInterstitialAd,
+    canUseFreeHint,
+    incrementHintsUsedInLevel,
+    resetHintsForLevel,
+    adsManager
+} from './ads';
+
 // Exportar tipos
 export type { Level, Difficulty, FirestoreLevel } from '../types/level';
 export type { Progress } from './storage'; 

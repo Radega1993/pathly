@@ -16,6 +16,16 @@ import {
     isLevelCompleted,
     getCompletedLevelsCount,
 } from '../services';
+import {
+    incrementLevelsCompleted,
+    shouldShowInterstitialAd,
+    showInterstitialAd,
+    canUseFreeHint,
+    incrementHintsUsedInLevel,
+    showRewardedAd,
+    resetHintsForLevel,
+    adsManager,
+} from '../services/ads';
 
 interface GameScreenProps {
     level: Level;
@@ -29,6 +39,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ level, onBack, onLevelComplete 
     const [currentHint, setCurrentHint] = useState<string>('');
     const [isLevelAlreadyCompleted, setIsLevelAlreadyCompleted] = useState(false);
     const [totalCompletedLevels, setTotalCompletedLevels] = useState(0);
+    const [hintsUsed, setHintsUsed] = useState(0);
 
     // Usar el grid del nivel de Firestore
     const [gridData] = useState<Cell[][]>(() => level.grid);
@@ -63,6 +74,9 @@ const GameScreen: React.FC<GameScreenProps> = ({ level, onBack, onLevelComplete 
             const completedCount = await getCompletedLevelsCount();
             setTotalCompletedLevels(completedCount);
 
+            // Obtener pistas usadas en este nivel
+            const hintsUsedCount = await adsManager.getHintsUsedInLevel(level.id);
+            setHintsUsed(hintsUsedCount);
 
         } catch (error) {
             console.error('Error inicializando progreso del nivel:', error);
@@ -73,13 +87,47 @@ const GameScreen: React.FC<GameScreenProps> = ({ level, onBack, onLevelComplete 
         setCurrentPath(path);
     };
 
-    const handleReset = () => {
+    const handleReset = async () => {
         setResetCount(prev => prev + 1);
         setCurrentHint('');
+
+        // Resetear contador de pistas para este nivel
+        await resetHintsForLevel(level.id);
+        setHintsUsed(0);
     };
 
-    const handleHint = (hint: string) => {
-        setCurrentHint(hint);
+    const handleHint = async (hint: string) => {
+        try {
+            // Verificar si puede usar pista gratuita
+            const canUseFree = await canUseFreeHint(level.id);
+
+            if (canUseFree) {
+                // Primera pista es gratuita
+                setCurrentHint(hint);
+                await incrementHintsUsedInLevel(level.id);
+                setHintsUsed(prev => prev + 1);
+            } else {
+                // Pistas adicionales requieren ver anuncio
+                const rewardEarned = await showRewardedAd();
+
+                if (rewardEarned) {
+                    setCurrentHint(hint);
+                    await incrementHintsUsedInLevel(level.id);
+                    setHintsUsed(prev => prev + 1);
+                } else {
+                    Alert.alert(
+                        'Pista no disponible',
+                        'Debes ver el anuncio completo para obtener esta pista.'
+                    );
+                }
+            }
+        } catch (error) {
+            console.error('Error obteniendo pista:', error);
+            Alert.alert(
+                'Error',
+                'No se pudo obtener la pista. Verifica tu conexión a internet.'
+            );
+        }
     };
 
     const isPathComplete = () => {
@@ -95,12 +143,21 @@ const GameScreen: React.FC<GameScreenProps> = ({ level, onBack, onLevelComplete 
                 // Marcar el nivel como completado en el almacenamiento local
                 await markLevelCompleted(level.id);
 
+                // Incrementar contador de niveles completados para anuncios
+                await incrementLevelsCompleted();
+
+                // Verificar si debe mostrar anuncio intersticial
+                const shouldShowAd = await shouldShowInterstitialAd();
+
                 // Actualizar estadísticas locales
                 const newCompletedCount = await getCompletedLevelsCount();
                 setTotalCompletedLevels(newCompletedCount);
                 setIsLevelAlreadyCompleted(true);
 
-
+                // Mostrar anuncio intersticial si corresponde
+                if (shouldShowAd) {
+                    await showInterstitialAd();
+                }
 
                 // Mostrar alerta de éxito
                 Alert.alert(
@@ -217,6 +274,13 @@ const GameScreen: React.FC<GameScreenProps> = ({ level, onBack, onLevelComplete 
                 <Text style={styles.infoText}>
                     Progreso: {getProgressPercentage()}% ({currentPath.length}/{gridData.length * gridData[0].length} celdas)
                 </Text>
+
+                {/* Indicador de pistas */}
+                <View style={styles.hintsInfo}>
+                    <Text style={styles.hintsText}>
+                        💡 Pistas usadas: {hintsUsed}
+                    </Text>
+                </View>
 
                 {/* Pista actual */}
                 {currentHint && (
@@ -389,6 +453,21 @@ const styles = StyleSheet.create({
         fontSize: 12,
         color: '#6B7280',
         marginTop: 2,
+    },
+    hintsInfo: {
+        marginTop: 10,
+        paddingHorizontal: 15,
+        paddingVertical: 8,
+        backgroundColor: '#FEF3C7',
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#F59E0B',
+    },
+    hintsText: {
+        fontSize: 14,
+        color: '#92400E',
+        fontWeight: '500',
+        textAlign: 'center',
     },
 });
 

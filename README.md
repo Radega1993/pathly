@@ -1,10 +1,26 @@
 # 🎮 Pathly - Puzzle Game
 
-Un juego de puzzle donde debes conectar números en orden trazando un camino en un grid NxN.
+**Versión**: 1.0.0  
+**Estado**: ✅ MVP Listo para Producción
 
-## 🏆 MVP Casi Completado - v0.9.0
+Un juego de puzzle adictivo donde conectas números en orden para completar cada nivel. Desarrollado con React Native y Expo.
 
-**Estado actual**: MVP funcional con sistema de pistas inteligente implementado. Solo falta la integración de anuncios y pagos.
+## 🚀 Características
+
+- **15 niveles progresivos** con dificultad creciente
+- **Sistema de pistas** inteligente (primera gratis, adicionales con anuncios)
+- **Monetización AdMob** integrada y optimizada
+- **Progreso persistente** en la nube y local
+- **UI/UX moderna** con diseño minimalista
+- **Generador de niveles** con IA
+
+## 🛠️ Stack Tecnológico
+
+- **Frontend**: React Native + Expo (Managed Workflow)
+- **Lenguaje**: TypeScript
+- **Backend**: Firebase (Firestore + Auth)
+- **Monetización**: Google AdMob
+- **Generador**: Python API con IA
 
 ### ✅ Funcionalidades Completadas
 - 🎮 **Juego completo** con grid interactivo
