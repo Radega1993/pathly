@@ -2,6 +2,20 @@
 
 Un juego de puzzle donde debes conectar números en orden trazando un camino en un grid NxN.
 
+## 🏆 MVP Casi Completado - v0.9.0
+
+**Estado actual**: MVP funcional con sistema de pistas inteligente implementado. Solo falta la integración de anuncios y pagos.
+
+### ✅ Funcionalidades Completadas
+- 🎮 **Juego completo** con grid interactivo
+- 🗺️ **Sistema de niveles** con progreso local
+- 🎯 **Sistema de pistas inteligente** con coordenadas corregidas
+- 💾 **Persistencia de datos** con AsyncStorage
+- 🎨 **UI/UX moderna** con paleta de colores definida
+- 🔧 **Generador de niveles** en Python
+- 📱 **Multiplataforma** (Android, iOS, Web)
+- 🛡️ **Validaciones robustas** y manejo de errores
+
 ## 🚀 Stack Tecnológico
 
 - **Framework**: React Native + Expo
@@ -93,6 +107,34 @@ const count = await getCompletedLevelsCount();
 - **Manejo de errores**: Recuperación automática de datos corruptos
 - **Sincronización**: Progreso actualizado en tiempo real
 - **Compatibilidad**: Funciona con el sistema de niveles existente
+
+## 🎯 Sistema de Pistas Inteligente
+
+El sistema de pistas analiza el camino actual del usuario y lo compara con la solución correcta para proporcionar ayuda contextual.
+
+### Características del Sistema
+
+- **Comparación inteligente**: Analiza paso a paso el camino vs la solución
+- **Pistas contextuales**: Diferentes tipos de ayuda según el estado del juego
+- **Efectos visuales**: Ilumina la celda sugerida con efectos especiales
+- **Coordenadas corregidas**: Sistema robusto que maneja correctamente las coordenadas del grid
+
+### Tipos de Pistas
+
+1. **Sin camino**: Ilumina el número 1 para empezar
+2. **Camino correcto**: Ilumina la siguiente celda de la solución
+3. **Camino incorrecto**: Ilumina la última celda correcta para retroceder
+
+### Uso
+
+```typescript
+// El sistema se activa automáticamente al presionar "💡 Pista"
+<Grid 
+  grid={gridData}
+  solution={levelSolution}
+  onHint={(hint) => console.log(hint)}
+/>
+```
 
 ## 🧩 Componente Grid
 
@@ -219,10 +261,10 @@ Pathly/
 - [x] ✅ Validación de caminos válidos
 - [x] ✅ Pantalla de selección de niveles
 - [x] ✅ Sistema de progresión de niveles
-- [ ] Generador de niveles con IA
-- [ ] Sistema de pistas
-- [ ] Integración con Firebase
-- [ ] Monetización con anuncios
+- [x] ✅ Generador de niveles con IA
+- [x] ✅ Sistema de pistas inteligente
+- [x] ✅ Integración con Firebase
+- [ ] Monetización con anuncios y pagos
 
 ## 📄 Licencia
 
