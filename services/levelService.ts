@@ -14,7 +14,11 @@ import { Level, Difficulty, FirestoreLevel } from '../types/level';
 import { Cell } from '../components/Grid';
 
 const PLAYED_LEVELS_KEY = 'played_levels';
+const LEVEL_CACHE_KEY = 'level_cache';
+const CACHE_EXPIRY_HOURS = 24; // Cache válido por 24 horas
 
+// Cache en memoria para niveles cargados
+const levelCache = new Map<string, { level: Level; timestamp: number }>();
 
 
 /**
@@ -135,7 +139,7 @@ export async function loadLevelByNumber(levelNumber: number): Promise<Level> {
 /**
  * Carga el siguiente nivel disponible según el progreso del usuario
  * 
- * @param difficulty - Dificultad del nivel ('easy', 'normal', 'hard', 'extreme')
+ * @param difficulty - Dificultad del nivel ('muy_facil', 'facil', 'normal', 'dificil', 'extremo')
  * @returns Promise<Level> - Nivel específico con id, gridSize, grid y solution
  */
 export async function loadLevelFromFirestore(difficulty: Difficulty): Promise<Level> {
@@ -217,5 +221,236 @@ export async function getMaxLevelNumber(): Promise<number> {
     } catch (error) {
         console.error('Error obteniendo nivel máximo:', error);
         return 0;
+    }
+}
+
+/**
+ * Cachea un nivel en memoria y AsyncStorage
+ */
+async function cacheLevel(levelNumber: number, level: Level): Promise<void> {
+    try {
+        const cacheKey = `level_${levelNumber}`;
+        const cacheData = {
+            level,
+            timestamp: Date.now()
+        };
+
+        // Cache en memoria
+        levelCache.set(cacheKey, cacheData);
+
+        // Cache en AsyncStorage
+        const existingCache = await AsyncStorage.getItem(LEVEL_CACHE_KEY);
+        const cache = existingCache ? JSON.parse(existingCache) : {};
+        cache[cacheKey] = cacheData;
+        await AsyncStorage.setItem(LEVEL_CACHE_KEY, JSON.stringify(cache));
+    } catch (error) {
+        console.error('Error cacheando nivel:', error);
+    }
+}
+
+/**
+ * Obtiene un nivel del cache si está disponible y no ha expirado
+ */
+async function getCachedLevel(levelNumber: number): Promise<Level | null> {
+    try {
+        const cacheKey = `level_${levelNumber}`;
+        const now = Date.now();
+        const expiryTime = CACHE_EXPIRY_HOURS * 60 * 60 * 1000; // 24 horas en ms
+
+        // Verificar cache en memoria primero
+        const memoryCache = levelCache.get(cacheKey);
+        if (memoryCache && (now - memoryCache.timestamp) < expiryTime) {
+            return memoryCache.level;
+        }
+
+        // Verificar cache en AsyncStorage
+        const cacheData = await AsyncStorage.getItem(LEVEL_CACHE_KEY);
+        if (cacheData) {
+            const cache = JSON.parse(cacheData);
+            const storedCache = cache[cacheKey];
+
+            if (storedCache && (now - storedCache.timestamp) < expiryTime) {
+                // Actualizar cache en memoria
+                levelCache.set(cacheKey, storedCache);
+                return storedCache.level;
+            }
+        }
+
+        return null;
+    } catch (error) {
+        console.error('Error obteniendo nivel del cache:', error);
+        return null;
+    }
+}
+
+/**
+ * Carga múltiples niveles de forma optimizada con cache
+ */
+export async function loadLevelsOptimized(
+    startLevel: number,
+    count: number,
+    userProgress: number
+): Promise<{ levels: Level[]; totalAvailable: number }> {
+    try {
+        const maxLevel = await getMaxLevelNumber();
+        const endLevel = Math.min(startLevel + count - 1, maxLevel);
+        const levelsToLoad = endLevel - startLevel + 1;
+
+        if (levelsToLoad <= 0) {
+            return { levels: [], totalAvailable: maxLevel };
+        }
+
+        const levels: Level[] = [];
+        const loadPromises: Promise<{ level: Level | null; levelNumber: number }>[] = [];
+
+        // Crear promesas para cargar niveles
+        for (let i = 0; i < levelsToLoad; i++) {
+            const levelNumber = startLevel + i;
+            loadPromises.push(
+                loadLevelWithCache(levelNumber)
+                    .then(level => ({ level, levelNumber }))
+                    .catch(error => {
+                        console.error(`Error cargando nivel ${levelNumber}:`, error);
+                        return { level: null, levelNumber };
+                    })
+            );
+        }
+
+        // Cargar todos los niveles en paralelo
+        const results = await Promise.all(loadPromises);
+
+        // Procesar resultados
+        for (const result of results) {
+            if (result.level) {
+                levels.push(result.level);
+            }
+        }
+
+        return { levels, totalAvailable: maxLevel };
+    } catch (error) {
+        console.error('Error cargando niveles optimizados:', error);
+        throw new Error('Error al cargar niveles');
+    }
+}
+
+/**
+ * Carga un nivel específico con cache
+ */
+export async function loadLevelWithCache(levelNumber: number): Promise<Level> {
+    try {
+        // Verificar cache primero
+        const cachedLevel = await getCachedLevel(levelNumber);
+        if (cachedLevel) {
+            console.log(`📦 Nivel ${levelNumber} cargado desde cache`);
+            return cachedLevel;
+        }
+
+        // Cargar desde Firestore
+        const level = await loadLevelByNumber(levelNumber);
+
+        // Cachear el nivel
+        await cacheLevel(levelNumber, level);
+
+        console.log(`🔥 Nivel ${levelNumber} cargado desde Firestore y cacheado`);
+        return level;
+    } catch (error) {
+        console.error(`Error cargando nivel ${levelNumber} con cache:`, error);
+        throw error;
+    }
+}
+
+/**
+ * Obtiene el rango óptimo de niveles a cargar basado en el progreso del usuario
+ */
+export function getOptimalLevelRange(
+    userProgress: number,
+    maxLevel: number,
+    pageSize: number = 20
+): { start: number; end: number; shouldLoadMore: boolean } {
+    // Calcular el nivel actual del usuario (siguiente a completar)
+    const currentLevel = userProgress + 1;
+
+    // Determinar el rango óptimo
+    let start = Math.max(1, currentLevel - 5); // 5 niveles antes del actual
+    let end = Math.min(maxLevel, start + pageSize - 1);
+
+    // Ajustar si estamos cerca del final
+    if (end === maxLevel && start > 1) {
+        start = Math.max(1, end - pageSize + 1);
+    }
+
+    // Solo mostrar "cargar más" si realmente hay más niveles después del rango actual
+    // y no hemos llegado exactamente al final
+    const shouldLoadMore = end < maxLevel;
+
+    console.log(`🎯 Rango óptimo: ${start}-${end}, maxLevel: ${maxLevel}, shouldLoadMore: ${shouldLoadMore}`);
+
+    return { start, end, shouldLoadMore };
+}
+
+/**
+ * Limpia el cache de niveles expirados
+ */
+export async function cleanupExpiredCache(): Promise<void> {
+    try {
+        const now = Date.now();
+        const expiryTime = CACHE_EXPIRY_HOURS * 60 * 60 * 1000;
+
+        // Limpiar cache en memoria
+        for (const [key, value] of levelCache.entries()) {
+            if (now - value.timestamp > expiryTime) {
+                levelCache.delete(key);
+            }
+        }
+
+        // Limpiar cache en AsyncStorage
+        const cacheData = await AsyncStorage.getItem(LEVEL_CACHE_KEY);
+        if (cacheData) {
+            const cache = JSON.parse(cacheData);
+            const cleanedCache: Record<string, any> = {};
+
+            for (const [key, value] of Object.entries(cache)) {
+                if (now - (value as any).timestamp < expiryTime) {
+                    cleanedCache[key] = value;
+                }
+            }
+
+            await AsyncStorage.setItem(LEVEL_CACHE_KEY, JSON.stringify(cleanedCache));
+        }
+
+        console.log('🧹 Cache de niveles limpiado');
+    } catch (error) {
+        console.error('Error limpiando cache:', error);
+    }
+}
+
+/**
+ * Precarga niveles cercanos al progreso del usuario
+ */
+export async function preloadNearbyLevels(userProgress: number): Promise<void> {
+    try {
+        const maxLevel = await getMaxLevelNumber();
+        const currentLevel = userProgress + 1;
+
+        // Precargar niveles cercanos (actual + 5 siguientes)
+        const preloadPromises: Promise<void>[] = [];
+
+        for (let i = 0; i < 5; i++) {
+            const levelNumber = currentLevel + i;
+            if (levelNumber <= maxLevel) {
+                preloadPromises.push(
+                    loadLevelWithCache(levelNumber)
+                        .then(() => console.log(`📦 Precargado nivel ${levelNumber}`))
+                        .catch(() => console.log(`❌ Error precargando nivel ${levelNumber}`))
+                );
+            }
+        }
+
+        // Ejecutar precarga en background
+        Promise.all(preloadPromises).then(() => {
+            console.log('✅ Precarga de niveles completada');
+        });
+    } catch (error) {
+        console.error('Error en precarga de niveles:', error);
     }
 } 

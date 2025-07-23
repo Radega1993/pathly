@@ -12,6 +12,15 @@ service cloud.firestore {
       // allow write: if false; // Solo administradores pueden escribir
     }
     
+    // Reglas para usuarios
+    match /users/{userId} {
+      // Usuario solo puede leer/escribir sus propios datos
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // Permitir creación de usuarios anónimos
+      allow create: if request.auth != null && request.auth.uid == userId;
+    }
+    
     // Reglas para otras colecciones futuras
     match /{document=**} {
       // Permitir acceso total para desarrollo

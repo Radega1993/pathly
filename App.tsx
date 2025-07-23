@@ -1,18 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, SafeAreaView, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import LevelSelectScreen from './screens/LevelSelectScreen';
 import GameScreen from './screens/GameScreen';
 import Logo from './components/Logo';
 import AudioSettings from './components/AudioSettings';
+import AuthModal from './components/AuthModal';
 import { Level } from './types/level';
 import { adsManager } from './services/ads';
 import { audioService } from './services/audio';
+import { authService, User, AuthState } from './services/auth';
+import { cleanupExpiredCache } from './services/levelService';
 
 type AppScreen = 'menu' | 'levelSelect' | 'game';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<AppScreen>('menu');
   const [selectedLevel, setSelectedLevel] = useState<Level | null>(null);
+  const [authState, setAuthState] = useState<AuthState>({
+    user: null,
+    isLoading: true,
+    isAuthenticated: false,
+  });
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   // Inicializar sistemas al cargar la app
   useEffect(() => {
@@ -20,6 +30,8 @@ export default function App() {
       try {
         await adsManager.initialize();
         await audioService.initialize();
+        // Limpiar cache expirado de niveles
+        await cleanupExpiredCache();
         // Reproducir música de menú al inicio
         await audioService.playBackgroundMusic('menu');
       } catch (error) {
@@ -29,9 +41,15 @@ export default function App() {
 
     initializeServices();
 
+    // Suscribirse a cambios de estado de autenticación
+    const unsubscribe = authService.subscribeToAuthState((state) => {
+      setAuthState(state);
+    });
+
     // Cleanup al desmontar la app
     return () => {
       audioService.cleanup();
+      unsubscribe();
     };
   }, []);
 
@@ -62,12 +80,37 @@ export default function App() {
     }
   };
 
+  const handleUserAuthenticated = (user: User) => {
+    console.log('✅ User authenticated:', user.displayName);
+    setShowAuthModal(false);
+  };
+
+  const handleShowAuthModal = () => {
+    setShowAuthModal(true);
+  };
+
+
+
   const renderScreen = () => {
     switch (currentScreen) {
       case 'menu':
         return (
           <SafeAreaView style={styles.container}>
-            <AudioSettings />
+            <View style={styles.header}>
+              <AudioSettings />
+              <TouchableOpacity
+                style={styles.authButton}
+                onPress={handleShowAuthModal}
+                activeOpacity={0.8}
+              >
+                {authState.isAuthenticated ? (
+                  <Ionicons name="person" size={24} color="#22C55E" />
+                ) : (
+                  <Ionicons name="person-outline" size={24} color="#3B82F6" />
+                )}
+              </TouchableOpacity>
+            </View>
+
             <View style={styles.menuContainer}>
               {/* Logo principal */}
               <View style={styles.logoContainer}>
@@ -83,6 +126,19 @@ export default function App() {
                 >
                   <Text style={styles.menuButtonText}>🎯 Jugar</Text>
                 </TouchableOpacity>
+
+                {/* Botón de premium - Comentado por ahora */}
+                {/*
+                <TouchableOpacity
+                  style={[styles.menuButton, styles.premiumButton]}
+                  onPress={() => console.log('🚀 Premium features coming soon!')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.premiumButtonText}>
+                    🚀 Ir Premium
+                  </Text>
+                </TouchableOpacity>
+                */}
 
                 {/* Botones para futuras versiones - Comentados para MVP */}
                 {/*
@@ -149,7 +205,17 @@ export default function App() {
     }
   };
 
-  return renderScreen();
+  return (
+    <>
+      {renderScreen()}
+      <AuthModal
+        visible={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onUserAuthenticated={handleUserAuthenticated}
+        authState={authState}
+      />
+    </>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -157,6 +223,31 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
+  header: {
+    position: 'relative',
+    height: 100,
+  },
+  authButton: {
+    position: 'absolute',
+    top: 50,
+    right: 80,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    zIndex: 1000,
+  },
+
   menuContainer: {
     flex: 1,
     alignItems: 'center',
@@ -232,5 +323,31 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: 12,
     color: '#9CA3AF',
+  },
+  secondaryButton: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 2,
+    borderColor: '#3B82F6',
+  },
+  secondaryButtonText: {
+    color: '#3B82F6',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  premiumButton: {
+    backgroundColor: '#F59E0B',
+    shadowColor: '#F59E0B',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  premiumButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
 });

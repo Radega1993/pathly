@@ -1,6 +1,6 @@
 import { Cell } from '../components/Grid';
 
-export type Difficulty = 'easy' | 'normal' | 'hard' | 'extreme';
+export type Difficulty = 'muy_facil' | 'facil' | 'normal' | 'dificil' | 'extremo';
 
 export interface Level {
     id: string;

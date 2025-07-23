@@ -1,5 +1,6 @@
 import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { authService } from './auth';
 
 // Mock de AdMob para evitar errores de runtime
 const AdMobInterstitial = {
@@ -105,6 +106,12 @@ class AdsManager {
 
     async showInterstitialAd(): Promise<void> {
         try {
+            // Verificar si el usuario es premium
+            if (authService.isPremium()) {
+                console.log('✅ User is premium, skipping interstitial ad');
+                return;
+            }
+
             if (!this.isInitialized) {
                 await this.initialize();
             }
@@ -126,6 +133,13 @@ class AdsManager {
     async showRewardedAd(): Promise<boolean> {
         return new Promise(async (resolve) => {
             try {
+                // Verificar si el usuario es premium
+                if (authService.isPremium()) {
+                    console.log('✅ User is premium, granting reward without ad');
+                    resolve(true);
+                    return;
+                }
+
                 if (!this.isInitialized) {
                     await this.initialize();
                 }
@@ -207,8 +221,13 @@ class AdsManager {
     }
 
     async canUseFreeHint(levelId: string): Promise<boolean> {
+        // Si el usuario es premium, siempre puede usar pistas
+        if (authService.isPremium()) {
+            return true;
+        }
+
         const hintsUsed = await this.getHintsUsedInLevel(levelId);
-        return hintsUsed === 0; // Solo la primera pista es gratuita
+        return hintsUsed === 0; // Solo la primera pista es gratuita para usuarios no premium
     }
 
     async resetHintsForLevel(levelId: string): Promise<void> {

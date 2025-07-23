@@ -7,7 +7,7 @@ import { Difficulty } from '../types/level';
 export async function exampleUsage() {
     try {
         // Cargar un nivel fácil
-        const easyLevel = await loadLevelFromFirestore('easy');
+        const easyLevel = await loadLevelFromFirestore('facil');
         console.log('Nivel fácil cargado:', {
             id: easyLevel.id,
             difficulty: easyLevel.difficulty,
@@ -49,7 +49,7 @@ export async function resetProgress() {
  * Ejemplo de carga de niveles por dificultad
  */
 export async function loadLevelsByDifficulty() {
-    const difficulties: Difficulty[] = ['easy', 'normal', 'hard', 'extreme'];
+    const difficulties: Difficulty[] = ['muy_facil', 'facil', 'normal', 'dificil', 'extremo'];
 
     for (const difficulty of difficulties) {
         try {
