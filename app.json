@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Pathly",
-    "slug": "pathly",
+    "name": "Pathly Game",
+    "slug": "pathly-game",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",

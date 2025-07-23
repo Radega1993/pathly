@@ -7,6 +7,7 @@ import {
     SafeAreaView,
     Alert,
 } from 'react-native';
+import { audioService } from '../services/audio';
 import Grid, { Cell } from '../components/Grid';
 import { validatePath } from '../utils/validatePath';
 import { Level } from '../types/level';
@@ -60,6 +61,13 @@ const GameScreen: React.FC<GameScreenProps> = ({ level, onBack, onLevelComplete 
     useEffect(() => {
         initializeLevelProgress();
     }, [level.id]);
+
+    // Verificar si el nivel se completó y reproducir sonido
+    useEffect(() => {
+        if (isPathComplete()) {
+            handleLevelComplete();
+        }
+    }, [currentPath]);
 
     const initializeLevelProgress = async () => {
         try {
@@ -140,6 +148,9 @@ const GameScreen: React.FC<GameScreenProps> = ({ level, onBack, onLevelComplete 
     const handleLevelComplete = async () => {
         if (isPathComplete()) {
             try {
+                // Reproducir sonido de victoria
+                await audioService.playWinSound();
+
                 // Marcar el nivel como completado en el almacenamiento local
                 await markLevelCompleted(level.id);
 

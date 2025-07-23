@@ -3,8 +3,10 @@ import { StyleSheet, View, Text, SafeAreaView, TouchableOpacity } from 'react-na
 import LevelSelectScreen from './screens/LevelSelectScreen';
 import GameScreen from './screens/GameScreen';
 import Logo from './components/Logo';
+import AudioSettings from './components/AudioSettings';
 import { Level } from './types/level';
 import { adsManager } from './services/ads';
+import { audioService } from './services/audio';
 
 type AppScreen = 'menu' | 'levelSelect' | 'game';
 
@@ -12,35 +14,51 @@ export default function App() {
   const [currentScreen, setCurrentScreen] = useState<AppScreen>('menu');
   const [selectedLevel, setSelectedLevel] = useState<Level | null>(null);
 
-  // Inicializar sistema de anuncios al cargar la app
+  // Inicializar sistemas al cargar la app
   useEffect(() => {
-    const initializeAds = async () => {
+    const initializeServices = async () => {
       try {
         await adsManager.initialize();
+        await audioService.initialize();
+        // Reproducir música de menú al inicio
+        await audioService.playBackgroundMusic('menu');
       } catch (error) {
-        console.error('Error initializing ads:', error);
+        console.error('Error initializing services:', error);
       }
     };
 
-    initializeAds();
+    initializeServices();
+
+    // Cleanup al desmontar la app
+    return () => {
+      audioService.cleanup();
+    };
   }, []);
 
   const handleLevelSelect = (level: Level) => {
     setSelectedLevel(level);
     setCurrentScreen('game');
+    // Cambiar a música de juego
+    audioService.playBackgroundMusic('maze');
   };
 
   const handleLevelComplete = (level: Level) => {
     // El progreso se maneja automáticamente en LevelSelectScreen
     // Solo volver a la selección de niveles
     setCurrentScreen('levelSelect');
+    // Cambiar a música de menú
+    audioService.playBackgroundMusic('menu');
   };
 
   const handleBack = () => {
     if (currentScreen === 'game') {
       setCurrentScreen('levelSelect');
+      // Cambiar a música de menú
+      audioService.playBackgroundMusic('menu');
     } else if (currentScreen === 'levelSelect') {
       setCurrentScreen('menu');
+      // Cambiar a música de menú
+      audioService.playBackgroundMusic('menu');
     }
   };
 
@@ -49,6 +67,7 @@ export default function App() {
       case 'menu':
         return (
           <SafeAreaView style={styles.container}>
+            <AudioSettings />
             <View style={styles.menuContainer}>
               {/* Logo principal */}
               <View style={styles.logoContainer}>
@@ -104,19 +123,25 @@ export default function App() {
 
       case 'levelSelect':
         return (
-          <LevelSelectScreen
-            onLevelSelect={handleLevelSelect}
-            onBack={handleBack}
-          />
+          <>
+            <AudioSettings />
+            <LevelSelectScreen
+              onLevelSelect={handleLevelSelect}
+              onBack={handleBack}
+            />
+          </>
         );
 
       case 'game':
         return selectedLevel ? (
-          <GameScreen
-            level={selectedLevel}
-            onBack={handleBack}
-            onLevelComplete={handleLevelComplete}
-          />
+          <>
+            <AudioSettings />
+            <GameScreen
+              level={selectedLevel}
+              onBack={handleBack}
+              onLevelComplete={handleLevelComplete}
+            />
+          </>
         ) : null;
 
       default:

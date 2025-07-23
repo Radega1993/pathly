@@ -8,6 +8,7 @@ import {
     Pressable,
     PanResponder,
 } from 'react-native';
+import { audioService } from '../services/audio';
 
 // Tipos para las celdas del grid
 export interface Cell {
@@ -137,6 +138,8 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
             const newPath = path.slice(0, cellIndex + 1);
             setPath(newPath);
             onPathChange?.(newPath);
+            // Reproducir sonido de retroceso
+            audioService.playBackSound();
             return;
         }
 
@@ -149,6 +152,9 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
         const newPath = [...path, cell];
         setPath(newPath);
         onPathChange?.(newPath);
+
+        // Reproducir sonido de avance
+        audioService.playForwardSound();
 
         // Forzar re-render para actualizar las líneas de todas las celdas
         setTimeout(() => {
