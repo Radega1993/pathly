@@ -1,5 +1,22 @@
 # 🎮 Pathly - Changelog
 
+## [1.0.1] - 2024-12-19
+
+### 🔧 Fixed
+- **Dependencias**: Añadida dependencia `canvas` para compatibilidad con generación de imágenes
+- **Consistencia de versiones**: Alineadas las versiones en package.json y app.json
+- **Limpieza de repositorio**: Eliminados submódulos innecesarios y archivos de configuración
+
+### 📦 Dependencies
+- Añadido `canvas@^3.1.2` para soporte de generación de imágenes y gráficos
+
+### 🧹 Code Cleanup
+- Limpieza general del repositorio
+- Eliminación de submódulos no utilizados
+- Optimización de la estructura del proyecto
+
+---
+
 ## [1.1.0] - 2024-01-XX
 
 ### 🔧 Fixed
