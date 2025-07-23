@@ -20,6 +20,7 @@ export default {
         },
         android: {
             package: "com.pathly.game",
+            versionCode: 2,
             adaptiveIcon: {
                 foregroundImage: "./assets/adaptive-icon.png",
                 backgroundColor: "#3B82F6"
