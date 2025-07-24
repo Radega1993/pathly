@@ -18,6 +18,7 @@ export {
     setLastLevelPlayed,
     isLevelCompleted,
     getCompletedLevelsCount,
+    getHighestCompletedLevel,
     clearProgress
 } from './storage';
 

@@ -32,9 +32,10 @@ interface GameScreenProps {
     level: Level;
     onBack: () => void;
     onLevelComplete: (level: Level) => void;
+    onShowAudioSettings?: () => void; // Nueva prop opcional
 }
 
-const GameScreen: React.FC<GameScreenProps> = ({ level, onBack, onLevelComplete }) => {
+const GameScreen: React.FC<GameScreenProps> = ({ level, onBack, onLevelComplete, onShowAudioSettings }) => {
     const [currentPath, setCurrentPath] = useState<Cell[]>([]);
     const [resetCount, setResetCount] = useState(0);
     const [currentHint, setCurrentHint] = useState<string>('');
@@ -256,6 +257,16 @@ const GameScreen: React.FC<GameScreenProps> = ({ level, onBack, onLevelComplete 
                     <Text style={styles.subtitle}>{getDifficultyText(level.difficulty)} • {level.gridSize}x{level.gridSize}</Text>
                 </View>
                 <View style={styles.headerRight}>
+                    {/* Botón de ajustes de audio */}
+                    {onShowAudioSettings && (
+                        <TouchableOpacity
+                            style={styles.audioButton}
+                            onPress={onShowAudioSettings}
+                            activeOpacity={0.8}
+                        >
+                            <Text style={styles.audioButtonText}>🔊</Text>
+                        </TouchableOpacity>
+                    )}
                     <Text style={styles.statsText}>Reinicios: {resetCount}</Text>
                     <Text style={styles.progressText}>Completados: {totalCompletedLevels}</Text>
                 </View>
@@ -322,7 +333,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 20,
-        paddingVertical: 15,
+        paddingVertical: 20, // Aumentado de 15 a 20
+        paddingTop: 30, // Añadir padding superior adicional
         backgroundColor: '#FFFFFF',
         borderBottomWidth: 1,
         borderBottomColor: '#E5E7EB',
@@ -347,6 +359,27 @@ const styles = StyleSheet.create({
     },
     headerRight: {
         alignItems: 'flex-end',
+    },
+    audioButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: '#FFFFFF',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 5,
+        shadowColor: '#000',
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    audioButtonText: {
+        fontSize: 18,
+        color: '#3B82F6',
     },
     statsText: {
         fontSize: 14,
@@ -378,6 +411,7 @@ const styles = StyleSheet.create({
     },
     info: {
         padding: 20,
+        paddingBottom: 60, // Aumentar padding inferior
         alignItems: 'center',
         backgroundColor: '#F9FAFB',
     },

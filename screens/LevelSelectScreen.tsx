@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     View,
     Text,
@@ -9,6 +9,7 @@ import {
     SafeAreaView,
     ActivityIndicator,
     Alert,
+    RefreshControl,
 } from 'react-native';
 import {
     loadLevelFromFirestore,
@@ -23,6 +24,7 @@ import {
 import { Level as FirestoreLevel, Difficulty } from '../types/level';
 import {
     getCompletedLevelsCount,
+    getHighestCompletedLevel,
     isLevelCompleted,
     getLastLevelPlayed,
 } from '../services';
@@ -37,127 +39,79 @@ interface LevelDisplay {
     isCurrent: boolean;
     gridSize: number;
     isComingSoon?: boolean;
+    levelNumber: number; // Número real del nivel
 }
 
 interface LevelSelectScreenProps {
     onLevelSelect: (level: FirestoreLevel) => void;
     onBack: () => void;
+    onShowAudioSettings?: () => void;
 }
 
-const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, onBack }) => {
+const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, onBack, onShowAudioSettings }) => {
     const [levels, setLevels] = useState<LevelDisplay[]>([]);
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [completedLevels, setCompletedLevels] = useState<string[]>([]);
     const [localProgressStats, setLocalProgressStats] = useState({
         totalCompleted: 0,
+        highestCompleted: 0,
         lastLevelPlayed: null as string | null,
     });
 
-    // Estados para paginación optimizada
-    const [currentPage, setCurrentPage] = useState(0);
-    const [totalLevels, setTotalLevels] = useState(0);
+    // Estados para navegación optimizada
+    const [currentRange, setCurrentRange] = useState({ start: 1, end: 20 });
     const [hasMoreLevels, setHasMoreLevels] = useState(true);
-    const [loadingMore, setLoadingMore] = useState(false);
-    const PAGE_SIZE = 20; // Cargar 20 niveles por página
+    const [maxLevelAvailable, setMaxLevelAvailable] = useState(0);
 
-    // Cargar niveles desde Firestore
+    const PAGE_SIZE = 20;
+
+    // Cargar niveles iniciales
     useEffect(() => {
-        loadLevelsFromFirestore();
+        loadInitialLevels();
     }, []);
 
     // Precargar niveles cercanos cuando cambie el progreso
     useEffect(() => {
-        if (localProgressStats.totalCompleted > 0) {
-            preloadNearbyLevels(localProgressStats.totalCompleted);
+        if (localProgressStats.highestCompleted > 0) {
+            preloadNearbyLevels(localProgressStats.highestCompleted);
         }
-    }, [localProgressStats.totalCompleted]);
+    }, [localProgressStats.highestCompleted]);
 
-    // Función para cargar más niveles
-    const loadMoreLevels = async () => {
-        if (loadingMore || !hasMoreLevels) return;
-
-        setLoadingMore(true);
-        try {
-            // Obtener el nivel máximo disponible
-            const maxLevel = await getMaxLevelNumber();
-
-            // Calcular el siguiente rango de niveles a cargar
-            const currentLevelsCount = levels.length;
-            const nextStart = currentLevelsCount + 1;
-            const nextEnd = Math.min(nextStart + PAGE_SIZE - 1, maxLevel);
-
-            if (nextStart > maxLevel) {
-                setHasMoreLevels(false);
-                return;
-            }
-
-            console.log(`📄 Cargando más niveles: ${nextStart} a ${nextEnd}`);
-
-            const { levels: newLevels } = await loadLevelsOptimized(nextStart, nextEnd - nextStart + 1, localProgressStats.totalCompleted);
-
-            // Convertir a LevelDisplay
-            const newDisplayLevels: LevelDisplay[] = [];
-            for (let i = 0; i < newLevels.length; i++) {
-                const level = newLevels[i];
-                const actualLevelNumber = nextStart + i;
-
-                const isCompleted = await isLevelCompleted(level.id);
-                const isUnlocked = isCompleted || actualLevelNumber === localProgressStats.totalCompleted + 1;
-                const isCurrent = actualLevelNumber === localProgressStats.totalCompleted + 1;
-
-                newDisplayLevels.push({
-                    id: level.id,
-                    difficulty: level.difficulty,
-                    gridSize: level.gridSize,
-                    isUnlocked,
-                    isCompleted,
-                    isCurrent,
-                });
-            }
-
-            // No agregar "Próximamente" en loadMoreLevels
-            // Solo se agrega en la carga inicial si es necesario
-
-            setLevels(prev => [...prev, ...newDisplayLevels]);
-            setHasMoreLevels(nextEnd < maxLevel);
-
-        } catch (error) {
-            console.error('Error cargando más niveles:', error);
-        } finally {
-            setLoadingMore(false);
-        }
-    };
-
-    const loadLevelsFromFirestore = async () => {
+    const loadInitialLevels = async () => {
         setLoading(true);
         setError(null);
 
         try {
             // Cargar progreso local primero
-            const [localCompletedCount, lastLevelPlayed] = await Promise.all([
+            const [localCompletedCount, highestCompleted, lastLevelPlayed] = await Promise.all([
                 getCompletedLevelsCount(),
+                getHighestCompletedLevel(),
                 getLastLevelPlayed(),
             ]);
 
             setLocalProgressStats({
                 totalCompleted: localCompletedCount,
+                highestCompleted,
                 lastLevelPlayed,
             });
 
-            console.log(`Progreso local: ${localCompletedCount} niveles completados, último jugado: ${lastLevelPlayed}`);
+            console.log(`📊 Progreso local: ${localCompletedCount} niveles completados, nivel más alto: ${highestCompleted}`);
 
             // Obtener el nivel máximo disponible
             const maxLevel = await getMaxLevelNumber();
-            console.log(`Nivel máximo disponible: ${maxLevel}`);
+            setMaxLevelAvailable(maxLevel);
+            console.log(`📊 Nivel máximo disponible: ${maxLevel}`);
 
             // Calcular rango óptimo de niveles a cargar
-            const { start, end, shouldLoadMore } = getOptimalLevelRange(localCompletedCount, maxLevel, PAGE_SIZE);
+            const { start, end, shouldLoadMore } = getOptimalLevelRange(highestCompleted, maxLevel, PAGE_SIZE);
+            setCurrentRange({ start, end });
+            setHasMoreLevels(shouldLoadMore);
 
             console.log(`📊 Cargando niveles ${start} a ${end} (${end - start + 1} niveles)`);
 
             // Cargar niveles optimizados
-            const { levels: loadedLevels, totalAvailable } = await loadLevelsOptimized(start, end - start + 1, localCompletedCount);
+            const { levels: loadedLevels, totalAvailable, currentLevel } = await loadLevelsOptimized(start, end - start + 1, highestCompleted);
 
             if (loadedLevels.length === 0) {
                 setError('No hay niveles disponibles en la base de datos.');
@@ -166,30 +120,30 @@ const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, on
             }
 
             // Convertir niveles de Firestore a LevelDisplay
-            const displayLevels: LevelDisplay[] = [];
+            const displayLevels: LevelDisplay[] = await Promise.all(
+                loadedLevels.map(async (level, index) => {
+                    // Extraer número del nivel del ID o calcular basado en el índice
+                    const levelNumber = parseInt(level.id.match(/level_(\d+)/)?.[1] || '0', 10) || (start + index);
+                    const isCompleted = await isLevelCompleted(level.id);
+                    const isUnlocked = isCompleted || levelNumber === highestCompleted + 1;
+                    const isCurrent = levelNumber === highestCompleted + 1;
 
-            // Agregar niveles normales
-            for (let i = 0; i < loadedLevels.length; i++) {
-                const level = loadedLevels[i];
-                const actualLevelNumber = start + i;
+                    return {
+                        id: level.id,
+                        difficulty: level.difficulty,
+                        gridSize: level.gridSize,
+                        isUnlocked,
+                        isCompleted,
+                        isCurrent,
+                        levelNumber,
+                    };
+                })
+            );
 
-                // Verificar si está completado usando el almacenamiento local
-                const isCompleted = await isLevelCompleted(level.id);
-                const isUnlocked = isCompleted || actualLevelNumber === localCompletedCount + 1;
-                const isCurrent = actualLevelNumber === localCompletedCount + 1;
+            // Ordenar por número de nivel
+            displayLevels.sort((a, b) => a.levelNumber - b.levelNumber);
 
-                displayLevels.push({
-                    id: level.id,
-                    difficulty: level.difficulty,
-                    gridSize: level.gridSize,
-                    isUnlocked,
-                    isCompleted,
-                    isCurrent,
-                });
-            }
-
-            // Agregar nivel "Próximamente" solo si hemos llegado al final de todos los niveles disponibles
-            // y hay niveles futuros disponibles (totalAvailable < maxLevel)
+            // Agregar nivel "Próximamente" si es necesario
             if (end >= totalAvailable && totalAvailable < maxLevel) {
                 displayLevels.push({
                     id: `coming_soon_${end + 1}`,
@@ -199,22 +153,125 @@ const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, on
                     isCompleted: false,
                     isCurrent: false,
                     isComingSoon: true,
+                    levelNumber: end + 1,
                 });
             }
 
+            console.log(`✅ Niveles cargados: ${displayLevels.length} niveles`);
             setLevels(displayLevels);
-            setCompletedLevels(displayLevels.filter(l => l.isCompleted).map(l => l.id));
-            setTotalLevels(totalAvailable);
-            setHasMoreLevels(shouldLoadMore);
-            setCurrentPage(0);
 
         } catch (error) {
-            console.error('Error cargando niveles:', error);
+            console.error('Error cargando niveles iniciales:', error);
             setError('Error al cargar los niveles. Intenta de nuevo.');
         } finally {
             setLoading(false);
         }
     };
+
+    const loadLevelsInRange = async (start: number, end: number) => {
+        try {
+            console.log(`🔄 Cargando rango ${start}-${end}`);
+
+            const { levels: loadedLevels, totalAvailable, currentLevel } = await loadLevelsOptimized(start, end - start + 1, localProgressStats.highestCompleted);
+
+            if (loadedLevels.length === 0) {
+                console.log('❌ No se encontraron niveles en el rango especificado');
+                return;
+            }
+
+            // Convertir y ordenar niveles
+            const displayLevels: LevelDisplay[] = await Promise.all(
+                loadedLevels.map(async (level, index) => {
+                    // Extraer número del nivel del ID o calcular basado en el índice
+                    const levelNumber = parseInt(level.id.match(/level_(\d+)/)?.[1] || '0', 10) || (start + index);
+                    const isCompleted = await isLevelCompleted(level.id);
+                    const isUnlocked = isCompleted || levelNumber === localProgressStats.highestCompleted + 1;
+                    const isCurrent = levelNumber === localProgressStats.highestCompleted + 1;
+
+                    return {
+                        id: level.id,
+                        difficulty: level.difficulty,
+                        gridSize: level.gridSize,
+                        isUnlocked,
+                        isCompleted,
+                        isCurrent,
+                        levelNumber,
+                    };
+                })
+            );
+
+            displayLevels.sort((a, b) => a.levelNumber - b.levelNumber);
+
+            // Agregar nivel "Próximamente" si es necesario
+            if (end >= totalAvailable && totalAvailable < maxLevelAvailable) {
+                displayLevels.push({
+                    id: `coming_soon_${end + 1}`,
+                    difficulty: 'normal',
+                    gridSize: 5,
+                    isUnlocked: false,
+                    isCompleted: false,
+                    isCurrent: false,
+                    isComingSoon: true,
+                    levelNumber: end + 1,
+                });
+            }
+
+            setLevels(displayLevels);
+            setCurrentRange({ start, end });
+            setHasMoreLevels(end < maxLevelAvailable);
+
+        } catch (error) {
+            console.error('Error cargando rango de niveles:', error);
+            Alert.alert('Error', 'No se pudieron cargar los niveles. Intenta de nuevo.');
+        }
+    };
+
+    const navigateToLevel = useCallback(async (targetLevel: number) => {
+        const { start, end } = currentRange;
+
+        // Si el nivel objetivo está en el rango actual, no hacer nada
+        if (targetLevel >= start && targetLevel <= end) {
+            console.log(`📍 Nivel ${targetLevel} ya está en el rango actual (${start}-${end})`);
+            return;
+        }
+
+        // Calcular nuevo rango centrado en el nivel objetivo
+        const halfPage = Math.floor(PAGE_SIZE / 2);
+        let newStart = Math.max(1, targetLevel - halfPage);
+        let newEnd = Math.min(maxLevelAvailable, newStart + PAGE_SIZE - 1);
+
+        // Ajustar si llegamos al final
+        if (newEnd === maxLevelAvailable && newStart > 1) {
+            newStart = Math.max(1, newEnd - PAGE_SIZE + 1);
+        }
+
+        console.log(`🧭 Navegando al nivel ${targetLevel}: nuevo rango ${newStart}-${newEnd}`);
+        await loadLevelsInRange(newStart, newEnd);
+    }, [currentRange, maxLevelAvailable]);
+
+    const loadNextPage = useCallback(async () => {
+        if (!hasMoreLevels) return;
+
+        const nextStart = currentRange.end + 1;
+        const nextEnd = Math.min(maxLevelAvailable, nextStart + PAGE_SIZE - 1);
+
+        console.log(`➡️ Cargando siguiente página: ${nextStart}-${nextEnd}`);
+        await loadLevelsInRange(nextStart, nextEnd);
+    }, [currentRange, hasMoreLevels, maxLevelAvailable]);
+
+    const loadPreviousPage = useCallback(async () => {
+        const prevEnd = currentRange.start - 1;
+        const prevStart = Math.max(1, prevEnd - PAGE_SIZE + 1);
+
+        console.log(`⬅️ Cargando página anterior: ${prevStart}-${prevEnd}`);
+        await loadLevelsInRange(prevStart, prevEnd);
+    }, [currentRange]);
+
+    const onRefresh = useCallback(async () => {
+        setRefreshing(true);
+        await loadInitialLevels();
+        setRefreshing(false);
+    }, []);
 
     const handleLevelPress = async (level: LevelDisplay) => {
         if (level.isComingSoon) {
@@ -236,9 +293,8 @@ const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, on
         }
 
         try {
-            // Cargar el nivel específico por número (índice + 1)
-            const levelNumber = levels.indexOf(level) + 1;
-            const firestoreLevel = await loadLevelByNumber(levelNumber);
+            console.log(`🎮 Intentando cargar nivel ${level.levelNumber} desde ID: ${level.id}`);
+            const firestoreLevel = await loadLevelByNumber(level.levelNumber);
             onLevelSelect(firestoreLevel);
         } catch (error) {
             console.error('Error cargando nivel:', error);
@@ -255,10 +311,7 @@ const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, on
             '🔄 Resetear Progreso',
             '¿Estás seguro de que quieres resetear todo el progreso? Esto te llevará de vuelta al nivel 1.',
             [
-                {
-                    text: 'Cancelar',
-                    style: 'cancel'
-                },
+                { text: 'Cancelar', style: 'cancel' },
                 {
                     text: 'Resetear',
                     style: 'destructive',
@@ -268,7 +321,7 @@ const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, on
                             Alert.alert(
                                 '✅ Progreso Reseteado',
                                 'Puedes empezar desde el nivel 1',
-                                [{ text: 'OK', onPress: () => loadLevelsFromFirestore() }]
+                                [{ text: 'OK', onPress: () => loadInitialLevels() }]
                             );
                         } catch (error) {
                             Alert.alert('❌ Error', 'No se pudo resetear el progreso');
@@ -317,7 +370,7 @@ const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, on
         const difficultyColor = getDifficultyColor(level.difficulty);
 
         return (
-            <View key={`level-${index + 1}`} style={styles.levelContainer}>
+            <View key={`level-${level.levelNumber}`} style={styles.levelContainer}>
                 {/* Línea del camino (excepto para el último nivel) */}
                 {!isLast && (
                     <View style={[styles.pathLine, { backgroundColor: difficultyColor }]} />
@@ -334,6 +387,7 @@ const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, on
                     ]}
                     onPress={() => handleLevelPress(level)}
                     disabled={!level.isUnlocked || level.isComingSoon}
+                    activeOpacity={0.7}
                 >
                     {/* Emoji de dificultad */}
                     <Text style={styles.difficultyEmoji}>
@@ -347,7 +401,7 @@ const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, on
                         !level.isUnlocked && styles.lockedLevelText,
                         level.isComingSoon && styles.comingSoonText,
                     ]}>
-                        {level.isComingSoon ? '?' : index + 1}
+                        {level.isComingSoon ? '?' : level.levelNumber}
                     </Text>
 
                     {/* Tick de completado */}
@@ -415,7 +469,7 @@ const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, on
                 </View>
                 <View style={styles.errorContainer}>
                     <Text style={styles.errorText}>{error}</Text>
-                    <TouchableOpacity style={styles.retryButton} onPress={loadLevelsFromFirestore}>
+                    <TouchableOpacity style={styles.retryButton} onPress={loadInitialLevels}>
                         <Text style={styles.retryButtonText}>Reintentar</Text>
                     </TouchableOpacity>
                 </View>
@@ -432,8 +486,18 @@ const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, on
                 </TouchableOpacity>
                 <Text style={styles.title}>🎮 Pathly</Text>
                 <View style={styles.headerRight}>
+                    {/* Botón de ajustes de audio */}
+                    {onShowAudioSettings && (
+                        <TouchableOpacity
+                            style={styles.audioButton}
+                            onPress={onShowAudioSettings}
+                            activeOpacity={0.8}
+                        >
+                            <Text style={styles.audioButtonText}>🔊</Text>
+                        </TouchableOpacity>
+                    )}
                     <Text style={styles.statsText}>
-                        {localProgressStats.totalCompleted}/{levels.length} completados
+                        {localProgressStats.totalCompleted} niveles completados
                     </Text>
                     {localProgressStats.lastLevelPlayed && (
                         <Text style={styles.lastPlayedText}>
@@ -443,36 +507,73 @@ const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, on
                 </View>
             </View>
 
+            {/* Controles de navegación optimizados */}
+            <View style={styles.navigationContainer}>
+                {/* Información del rango actual */}
+                <Text style={styles.rangeInfo}>
+                    Niveles {currentRange.start}-{currentRange.end} de {maxLevelAvailable}
+                </Text>
+
+                {/* Botones de navegación */}
+                <View style={styles.navigationButtons}>
+                    <TouchableOpacity
+                        style={[
+                            styles.navButton,
+                            currentRange.start <= 1 && styles.navButtonDisabled
+                        ]}
+                        onPress={loadPreviousPage}
+                        disabled={loading || currentRange.start <= 1}
+                    >
+                        <Text style={[
+                            styles.navButtonText,
+                            currentRange.start <= 1 && styles.navButtonTextDisabled
+                        ]}>
+                            ← Anteriores
+                        </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={styles.navButton}
+                        onPress={() => navigateToLevel(localProgressStats.highestCompleted + 1)}
+                        disabled={loading}
+                    >
+                        <Text style={styles.navButtonText}>
+                            Nivel {localProgressStats.highestCompleted + 1}
+                        </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[
+                            styles.navButton,
+                            !hasMoreLevels && styles.navButtonDisabled
+                        ]}
+                        onPress={loadNextPage}
+                        disabled={loading || !hasMoreLevels}
+                    >
+                        <Text style={[
+                            styles.navButtonText,
+                            !hasMoreLevels && styles.navButtonTextDisabled
+                        ]}>
+                            {loading ? 'Cargando...' : 'Siguientes →'}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+
             {/* Mapa de niveles */}
             <ScrollView
                 style={styles.mapContainer}
                 contentContainerStyle={styles.mapContent}
                 showsVerticalScrollIndicator={false}
-                onScroll={({ nativeEvent }) => {
-                    const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
-                    const paddingToBottom = 20;
-
-                    // Cargar más niveles cuando el usuario está cerca del final
-                    if (layoutMeasurement.height + contentOffset.y >=
-                        contentSize.height - paddingToBottom) {
-                        loadMoreLevels();
-                    }
-                }}
-                scrollEventThrottle={400}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                }
             >
                 {/* Fondo del mapa */}
                 <View style={styles.mapBackground}>
                     {/* Contenedor de niveles */}
                     <View style={styles.levelsContainer}>
                         {levels.map((level, index) => renderLevel(level, index))}
-
-                        {/* Indicador de carga de más niveles */}
-                        {loadingMore && (
-                            <View style={styles.loadMoreContainer}>
-                                <ActivityIndicator size="small" color="#3B82F6" />
-                                <Text style={styles.loadMoreText}>Cargando más niveles...</Text>
-                            </View>
-                        )}
 
                         {/* Indicador de fin de niveles */}
                         {!hasMoreLevels && levels.length > 0 && (
@@ -519,7 +620,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 20,
-        paddingVertical: 15,
+        paddingVertical: 20, // Aumentado de 15 a 20
+        paddingTop: 30, // Añadir padding superior adicional
         backgroundColor: '#FFFFFF',
         borderBottomWidth: 1,
         borderBottomColor: '#E5E7EB',
@@ -544,6 +646,27 @@ const styles = StyleSheet.create({
     },
     headerRight: {
         alignItems: 'flex-end',
+    },
+    audioButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: '#FFFFFF',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 5,
+        shadowColor: '#000',
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    audioButtonText: {
+        fontSize: 18,
+        color: '#3B82F6',
     },
     statsText: {
         fontSize: 14,
@@ -670,6 +793,7 @@ const styles = StyleSheet.create({
     },
     footer: {
         padding: 20,
+        paddingBottom: 70, // Aumentar padding inferior
         backgroundColor: '#FFFFFF',
         alignItems: 'center',
     },
@@ -788,6 +912,94 @@ const styles = StyleSheet.create({
         color: '#22C55E',
         textAlign: 'center',
         fontWeight: 'bold',
+    },
+    paginationContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingVertical: 15,
+        backgroundColor: '#F9FAFB',
+        borderBottomWidth: 1,
+        borderBottomColor: '#E5E7EB',
+    },
+    paginationButton: {
+        backgroundColor: '#3B82F6',
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        borderRadius: 20,
+        minWidth: 100,
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    paginationButtonDisabled: {
+        backgroundColor: '#E5E7EB',
+        shadowOpacity: 0,
+        elevation: 0,
+    },
+    paginationButtonText: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: 'bold',
+    },
+    paginationButtonTextDisabled: {
+        color: '#9CA3AF',
+    },
+    navigationContainer: {
+        paddingHorizontal: 20,
+        paddingVertical: 15,
+        backgroundColor: '#F9FAFB',
+        borderBottomWidth: 1,
+        borderBottomColor: '#E5E7EB',
+    },
+    rangeInfo: {
+        fontSize: 14,
+        color: '#6B7280',
+        textAlign: 'center',
+        marginBottom: 10,
+        fontWeight: '500',
+    },
+    navigationButtons: {
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        alignItems: 'center',
+        gap: 10,
+    },
+    navButton: {
+        backgroundColor: '#3B82F6',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderRadius: 25,
+        minWidth: 90,
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    navButtonDisabled: {
+        backgroundColor: '#E5E7EB',
+        shadowOpacity: 0,
+        elevation: 0,
+    },
+    navButtonText: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: 'bold',
+    },
+    navButtonTextDisabled: {
+        color: '#9CA3AF',
     },
 });
 

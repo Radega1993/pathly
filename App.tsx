@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, SafeAreaView, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, Text, SafeAreaView, TouchableOpacity, AppState } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import LevelSelectScreen from './screens/LevelSelectScreen';
 import GameScreen from './screens/GameScreen';
@@ -23,19 +23,59 @@ export default function App() {
     isAuthenticated: false,
   });
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showAudioSettings, setShowAudioSettings] = useState(false);
 
   // Inicializar sistemas al cargar la app
   useEffect(() => {
     const initializeServices = async () => {
       try {
+        console.log('🔄 Initializing app services...');
+
+        // Inicializar AdMob
         await adsManager.initialize();
-        await audioService.initialize();
+        console.log('✅ AdMob initialized');
+
+        // Inicializar audio con retry
+        let audioInitialized = false;
+        let retryCount = 0;
+        const maxRetries = 3;
+
+        while (!audioInitialized && retryCount < maxRetries) {
+          try {
+            await audioService.initialize();
+            audioInitialized = true;
+            console.log('✅ Audio service initialized');
+          } catch (error) {
+            retryCount++;
+            console.error(`❌ Audio initialization attempt ${retryCount} failed:`, error);
+            if (retryCount < maxRetries) {
+              console.log(`🔄 Retrying audio initialization in 1 second...`);
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+          }
+        }
+
+        if (!audioInitialized) {
+          console.error('❌ Failed to initialize audio service after all retries');
+        }
+
         // Limpiar cache expirado de niveles
         await cleanupExpiredCache();
-        // Reproducir música de menú al inicio
-        await audioService.playBackgroundMusic('menu');
+        console.log('✅ Cache cleaned');
+
+        // Reproducir música de menú al inicio (solo si el audio se inicializó correctamente)
+        if (audioInitialized) {
+          try {
+            await audioService.playBackgroundMusic('menu');
+            console.log('✅ Menu music started');
+          } catch (error) {
+            console.error('❌ Error playing menu music:', error);
+          }
+        }
+
+        console.log('✅ All services initialized');
       } catch (error) {
-        console.error('Error initializing services:', error);
+        console.error('❌ Error initializing services:', error);
       }
     };
 
@@ -46,10 +86,42 @@ export default function App() {
       setAuthState(state);
     });
 
+    // Manejar cambios de estado de la app (minimizar/maximizar)
+    const handleAppStateChange = async (nextAppState: string) => {
+      try {
+        if (nextAppState === 'active') {
+          // App vuelve a estar activa - reanudar música si estaba habilitada
+          console.log('🔄 App became active, resuming music...');
+          if (audioService.getSettings().musicEnabled) {
+            // Determinar qué música reproducir según la pantalla actual
+            if (currentScreen === 'game') {
+              await audioService.playBackgroundMusic('maze');
+            } else {
+              await audioService.playBackgroundMusic('menu');
+            }
+          }
+        } else if (nextAppState === 'background' || nextAppState === 'inactive') {
+          // App se minimiza - pausar música
+          console.log('🔄 App went to background, pausing music...');
+          await audioService.stopBackgroundMusic();
+        }
+      } catch (error) {
+        console.error('❌ Error handling app state change:', error);
+      }
+    };
+
+    // Suscribirse a cambios de estado de la app
+    const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
+
     // Cleanup al desmontar la app
     return () => {
-      audioService.cleanup();
-      unsubscribe();
+      try {
+        audioService.cleanup();
+        unsubscribe();
+        appStateSubscription?.remove();
+      } catch (error) {
+        console.error('❌ Error during cleanup:', error);
+      }
     };
   }, []);
 
@@ -89,7 +161,13 @@ export default function App() {
     setShowAuthModal(true);
   };
 
+  const handleShowAudioSettings = () => {
+    setShowAudioSettings(true);
+  };
 
+  const handleCloseAudioSettings = () => {
+    setShowAudioSettings(false);
+  };
 
   const renderScreen = () => {
     switch (currentScreen) {
@@ -97,7 +175,13 @@ export default function App() {
         return (
           <SafeAreaView style={styles.container}>
             <View style={styles.header}>
-              <AudioSettings />
+              <TouchableOpacity
+                style={styles.audioButton}
+                onPress={handleShowAudioSettings}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="settings-outline" size={24} color="#3B82F6" />
+              </TouchableOpacity>
               <TouchableOpacity
                 style={styles.authButton}
                 onPress={handleShowAuthModal}
@@ -171,7 +255,7 @@ export default function App() {
 
               {/* Footer */}
               <View style={styles.footer}>
-                <Text style={styles.footerText}>Versión 1.0.0</Text>
+                <Text style={styles.footerText}>Versión 1.0.3</Text>
               </View>
             </View>
           </SafeAreaView>
@@ -179,25 +263,21 @@ export default function App() {
 
       case 'levelSelect':
         return (
-          <>
-            <AudioSettings />
-            <LevelSelectScreen
-              onLevelSelect={handleLevelSelect}
-              onBack={handleBack}
-            />
-          </>
+          <LevelSelectScreen
+            onLevelSelect={handleLevelSelect}
+            onBack={handleBack}
+            onShowAudioSettings={handleShowAudioSettings}
+          />
         );
 
       case 'game':
         return selectedLevel ? (
-          <>
-            <AudioSettings />
-            <GameScreen
-              level={selectedLevel}
-              onBack={handleBack}
-              onLevelComplete={handleLevelComplete}
-            />
-          </>
+          <GameScreen
+            level={selectedLevel}
+            onBack={handleBack}
+            onLevelComplete={handleLevelComplete}
+            onShowAudioSettings={handleShowAudioSettings}
+          />
         ) : null;
 
       default:
@@ -214,6 +294,10 @@ export default function App() {
         onUserAuthenticated={handleUserAuthenticated}
         authState={authState}
       />
+      <AudioSettings
+        visible={showAudioSettings}
+        onClose={handleCloseAudioSettings}
+      />
     </>
   );
 }
@@ -225,12 +309,34 @@ const styles = StyleSheet.create({
   },
   header: {
     position: 'relative',
-    height: 100,
+    height: 120, // Aumentado de 100 a 120
+    paddingTop: 20, // Añadir padding superior
+    paddingHorizontal: 20, // Añadir padding horizontal
+  },
+  audioButton: {
+    position: 'absolute',
+    top: 60, // Aumentado de 50 a 60
+    left: 20, // Reducido de 80 a 20 para usar el padding del header
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    zIndex: 1000,
   },
   authButton: {
     position: 'absolute',
-    top: 50,
-    right: 80,
+    top: 60, // Aumentado de 50 a 60
+    right: 20, // Reducido de 80 a 20 para usar el padding del header
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -252,11 +358,13 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 20, // Añadir padding superior
+    paddingBottom: 40, // Aumentar padding inferior
   },
   logoContainer: {
     alignItems: 'center',
-    marginTop: 40,
+    marginTop: 20, // Reducido de 40 a 20
     marginBottom: 20,
   },
   menuButtons: {
@@ -318,7 +426,8 @@ const styles = StyleSheet.create({
   },
   footer: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 40, // Aumentado de 20 a 40
+    paddingBottom: 20, // Añadir padding inferior adicional
   },
   footerText: {
     fontSize: 12,

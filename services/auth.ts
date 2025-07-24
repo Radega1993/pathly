@@ -1,11 +1,20 @@
-import { initializeAuth } from 'firebase/auth';
+import { initializeAuth, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as AuthSession from 'expo-auth-session';
+import * as Crypto from 'expo-crypto';
 import app, { db } from './firebase';
 import { Progress } from './storage';
 
 // Inicializar Auth (sin persistencia por ahora para evitar errores)
 const auth = initializeAuth(app);
+
+// Configuración de Google OAuth
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_WEB_CLIENT_ID;
+const GOOGLE_REDIRECT_URI = AuthSession.makeRedirectUri({
+    scheme: 'com.pathly.game',
+    path: 'auth'
+});
 
 // Tipos
 export interface User {
@@ -68,14 +77,133 @@ class AuthService {
         });
     }
 
-
-
-    // Login con Google (simplificado - solo mock por ahora)
+    // Login con Google usando Expo AuthSession
     async signInWithGoogle(): Promise<User> {
         try {
-            console.log('🔄 Iniciando login con Google...');
+            console.log('🔄 Iniciando login con Google usando Expo AuthSession...');
+            console.log('🔧 Configuración completa:', {
+                clientId: GOOGLE_CLIENT_ID,
+                redirectUri: GOOGLE_REDIRECT_URI,
+                scheme: 'com.pathly.game',
+                clientIdLength: GOOGLE_CLIENT_ID?.length || 0,
+                redirectUriLength: GOOGLE_REDIRECT_URI?.length || 0
+            });
 
-            // Por ahora, crear un usuario mock de Google
+            if (!GOOGLE_CLIENT_ID) {
+                throw new Error('GOOGLE_CLIENT_ID no está configurado');
+            }
+
+            // Crear solicitud de autorización
+            const request = new AuthSession.AuthRequest({
+                clientId: GOOGLE_CLIENT_ID,
+                scopes: ['openid', 'profile', 'email'],
+                redirectUri: GOOGLE_REDIRECT_URI,
+                responseType: AuthSession.ResponseType.Code,
+                codeChallenge: await Crypto.digestStringAsync(
+                    Crypto.CryptoDigestAlgorithm.SHA256,
+                    'challenge',
+                    { encoding: Crypto.CryptoEncoding.HEX }
+                ),
+                codeChallengeMethod: AuthSession.CodeChallengeMethod.S256,
+            });
+
+            console.log('✅ Solicitud de autorización creada');
+            console.log('🔗 URL de autorización:', await request.makeAuthUrlAsync({
+                authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+            }));
+
+            // Ejecutar la solicitud
+            const result = await request.promptAsync({
+                authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+            });
+
+            console.log('📱 Resultado de autorización:', result.type);
+            console.log('📋 Detalles del resultado:', JSON.stringify(result, null, 2));
+
+            if (result.type === 'success') {
+                console.log('✅ Autorización exitosa');
+                console.log('🔑 Código recibido:', result.params.code ? 'SÍ' : 'NO');
+
+                // Intercambiar código por tokens
+                const tokenResult = await AuthSession.exchangeCodeAsync(
+                    {
+                        clientId: GOOGLE_CLIENT_ID,
+                        code: result.params.code,
+                        redirectUri: GOOGLE_REDIRECT_URI,
+                        extraParams: {
+                            code_verifier: 'challenge',
+                        },
+                    },
+                    {
+                        tokenEndpoint: 'https://oauth2.googleapis.com/token',
+                    }
+                );
+
+                console.log('✅ Tokens obtenidos');
+                console.log('🆔 ID Token presente:', !!tokenResult.idToken);
+
+                // Crear credencial de Firebase
+                const credential = GoogleAuthProvider.credential(tokenResult.idToken);
+
+                console.log('✅ Credencial de Firebase creada');
+
+                // Autenticar con Firebase
+                const firebaseResult = await signInWithCredential(auth, credential);
+                const firebaseUser = firebaseResult.user;
+
+                console.log('✅ Usuario autenticado con Firebase:', firebaseUser.uid);
+
+                // Crear objeto de usuario
+                const user: User = {
+                    uid: firebaseUser.uid,
+                    email: firebaseUser.email || undefined,
+                    displayName: firebaseUser.displayName || 'Usuario Google',
+                    photoURL: firebaseUser.photoURL || undefined,
+                    userType: 'free',
+                    createdAt: firebaseUser.metadata.creationTime ?
+                        new Date(firebaseUser.metadata.creationTime).getTime() : Date.now(),
+                    lastLoginAt: Date.now(),
+                };
+
+                // Crear o actualizar datos del usuario en Firestore
+                await this.createOrUpdateUserData(user);
+
+                this.currentUser = user;
+                this.notifyAuthStateChange();
+
+                console.log('✅ Login con Google exitoso');
+                return user;
+            } else if (result.type === 'cancel') {
+                console.log('❌ Usuario canceló la autorización');
+                throw new Error('Autorización cancelada por el usuario');
+            } else if (result.type === 'error') {
+                console.log('❌ Error en autorización:', result.error);
+                throw new Error(`Error de autorización: ${result.error}`);
+            } else {
+                console.log('❌ Resultado inesperado:', result.type);
+                throw new Error('Resultado de autorización inesperado');
+            }
+        } catch (error) {
+            console.error('❌ Error en login con Google:', error);
+            console.error('❌ Error details:', JSON.stringify(error, null, 2));
+
+            const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+            const errorStack = error instanceof Error ? error.stack : 'No disponible';
+
+            console.error('❌ Error message:', errorMessage);
+            console.error('❌ Error stack:', errorStack);
+
+            // Lanzar el error real en lugar de usar mock
+            throw new Error(`Error en login con Google: ${errorMessage}`);
+        }
+    }
+
+    // Login con Google (mock como fallback)
+    private async signInWithGoogleMock(): Promise<User> {
+        try {
+            console.log('🔄 Iniciando login con Google (mock)...');
+
+            // Crear un usuario mock de Google
             const mockGoogleUser: User = {
                 uid: `google_${Date.now()}`,
                 email: 'usuario@gmail.com',
@@ -95,7 +223,7 @@ class AuthService {
             console.log('✅ Login con Google exitoso (mock)');
             return mockGoogleUser;
         } catch (error) {
-            console.error('❌ Error en login con Google:', error);
+            console.error('❌ Error en login con Google (mock):', error);
             throw error;
         }
     }
@@ -176,7 +304,9 @@ class AuthService {
     // Logout
     async signOut(): Promise<void> {
         try {
+            // Cerrar sesión de Firebase
             await auth.signOut();
+
             this.currentUser = null;
             this.notifyAuthStateChange();
             console.log('✅ Logout exitoso');

@@ -66,6 +66,35 @@ npm run ios
 npm run web
 ```
 
+## 🚀 Proceso de Release
+
+### Verificación Pre-Release
+```bash
+# Verificar que el proyecto está listo para release
+./scripts/verify-release-readiness.sh
+```
+
+### Crear Release Automático
+```bash
+# Crear release completo (versión y version code)
+./scripts/create-release.sh 1.0.2 11
+```
+
+### Proceso Manual
+Para un control más detallado, sigue la [Guía Completa de Release](RELEASE_GUIDE.md).
+
+### Archivos de Release
+Los releases se guardan en la carpeta `releases/` con la siguiente estructura:
+```
+releases/
+├── v1.0.1/
+│   ├── Pathly-v1.0.1-release.aab    # Para Google Play Store
+│   ├── Pathly-v1.0.1-release.apk    # Para distribución directa
+│   └── RELEASE_NOTES.md             # Notas del release
+└── v1.0.2/
+    └── ...
+```
+
 ## 🎮 Pantallas del Juego
 
 ### 🏠 Pantalla Principal

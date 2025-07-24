@@ -170,6 +170,41 @@ export const getCompletedLevelsCount = async (): Promise<number> => {
 };
 
 /**
+ * Obtiene el nivel más alto completado secuencialmente
+ * @returns Promise<number> - Nivel más alto completado (0 si no hay ninguno)
+ */
+export const getHighestCompletedLevel = async (): Promise<number> => {
+    try {
+        const progress = await getProgress();
+        let highestLevel = 0;
+
+        console.log(`🔍 getHighestCompletedLevel: ${progress.completedLevels.size} niveles completados`);
+        console.log(`🔍 Niveles completados:`, Array.from(progress.completedLevels));
+
+        // Buscar el nivel más alto completado secuencialmente
+        for (const levelId of progress.completedLevels) {
+            // Extraer el número del nivel del ID (asumiendo formato como "level_1", "level_2", etc.)
+            const match = levelId.match(/level_(\d+)/);
+            if (match) {
+                const levelNumber = parseInt(match[1], 10);
+                console.log(`🔍 Nivel ${levelId} -> número ${levelNumber}`);
+                if (levelNumber > highestLevel) {
+                    highestLevel = levelNumber;
+                }
+            } else {
+                console.log(`🔍 No se pudo extraer número del nivel: ${levelId}`);
+            }
+        }
+
+        console.log(`🔍 Nivel más alto completado: ${highestLevel}`);
+        return highestLevel;
+    } catch (error) {
+        console.error('Error al obtener nivel más alto completado:', error);
+        return 0;
+    }
+};
+
+/**
  * Limpia todo el progreso guardado (útil para testing o reset)
  * @returns Promise<void>
  */

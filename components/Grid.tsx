@@ -6,7 +6,7 @@ import {
     StyleSheet,
     Dimensions,
     Pressable,
-    PanResponder,
+    Alert,
 } from 'react-native';
 import { audioService } from '../services/audio';
 
@@ -26,16 +26,13 @@ export interface GridProps {
 }
 
 const { width: screenWidth } = Dimensions.get('window');
-const GRID_MARGIN = 20;
+const GRID_MARGIN = 80; // Aumentado de 20 a 40
 const getCellSize = (gridSize: number) => Math.min((screenWidth - GRID_MARGIN * 2) / gridSize, 60);
 
 const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHint }) => {
     const [path, setPath] = useState<Cell[]>([]);
     const [isDrawing, setIsDrawing] = useState(false);
-    const [isDragging, setIsDragging] = useState(false);
-    const [hoveredCell, setHoveredCell] = useState<Cell | null>(null);
     const [hintCell, setHintCell] = useState<Cell | null>(null);
-    const gridRef = useRef<View>(null);
 
     // Validar que la solución sea válida al cargar
     useEffect(() => {
@@ -62,8 +59,6 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
     const resetPath = () => {
         setPath([]);
         setIsDrawing(false);
-        setIsDragging(false);
-        setHoveredCell(null);
         setHintCell(null);
         onPathChange?.([]);
     };
@@ -115,10 +110,8 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
             }
         }
 
-        // ARREGLADO: Permitir continuar después del último número
+        // Permitir continuar después del último número
         // El jugador debe completar todo el grid, no solo conectar los números
-        return true;
-
         return true;
     };
 
@@ -155,79 +148,17 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
 
         // Reproducir sonido de avance
         audioService.playForwardSound();
-
-        // Forzar re-render para actualizar las líneas de todas las celdas
-        setTimeout(() => {
-            setPath([...newPath]);
-        }, 0);
     };
-
-
-
-    const getCellFromPosition = (x: number, y: number): Cell | null => {
-        if (!gridRef.current) return null;
-
-        const gridSize = grid.length;
-        const cellSize = getCellSize(gridSize);
-
-        // Calcular la posición relativa al grid
-        const gridX = Math.floor((x - GRID_MARGIN) / cellSize);
-        const gridY = Math.floor((y - GRID_MARGIN) / cellSize);
-
-        // Verificar que esté dentro del grid
-        if (gridX < 0 || gridX >= gridSize || gridY < 0 || gridY >= gridSize) {
-            return null;
-        }
-
-        return grid[gridY][gridX];
-    };
-
-    const panResponder = useRef(
-        PanResponder.create({
-            onStartShouldSetPanResponder: () => true,
-            onMoveShouldSetPanResponder: () => true,
-            onPanResponderGrant: (evt) => {
-                const { locationX, locationY } = evt.nativeEvent;
-                const cell = getCellFromPosition(locationX, locationY);
-
-                if (cell) {
-                    if (cell.value === 1) {
-                        // Iniciar nuevo camino desde el número 1
-                        setPath([cell]);
-                        setIsDrawing(true);
-                        setIsDragging(true);
-                        onPathChange?.([cell]);
-                    } else if (path.length > 0) {
-                        // Continuar camino existente
-                        setIsDragging(true);
-                        addCellToPath(cell);
-                    }
-                }
-            },
-            onPanResponderMove: (evt) => {
-                if (!isDragging) return;
-
-                const { locationX, locationY } = evt.nativeEvent;
-                const cell = getCellFromPosition(locationX, locationY);
-
-                if (cell) {
-                    setHoveredCell(cell);
-                    addCellToPath(cell);
-                }
-            },
-            onPanResponderRelease: () => {
-                setIsDragging(false);
-                setHoveredCell(null);
-            },
-        })
-    ).current;
 
     const handleCellPress = (cell: Cell) => {
+        console.log(`🖱️ Celda presionada: (${cell.x}, ${cell.y}) - Valor: ${cell.value}`);
+
         // Si es el número 1, iniciar nuevo camino
         if (cell.value === 1) {
             setPath([cell]);
             setIsDrawing(true);
             onPathChange?.([cell]);
+            audioService.playForwardSound();
             return;
         }
 
@@ -239,6 +170,20 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
         addCellToPath(cell);
     };
 
+    const handleCellLongPress = (cell: Cell) => {
+        console.log(`🔍 Long press en celda: (${cell.x}, ${cell.y})`);
+
+        // Permitir iniciar desde cualquier celda con long press
+        if (path.length === 0) {
+            setPath([cell]);
+            setIsDrawing(true);
+            onPathChange?.([cell]);
+            audioService.playForwardSound();
+        } else {
+            addCellToPath(cell);
+        }
+    };
+
     const getCellPathIndex = (cell: Cell): number => {
         return path.findIndex(pathCell => pathCell.x === cell.x && pathCell.y === cell.y);
     };
@@ -246,19 +191,15 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
     const getCellStyle = (cell: Cell) => {
         const pathIndex = getCellPathIndex(cell);
         const isInPath = pathIndex !== -1;
-        const isHovered = hoveredCell && hoveredCell.x === cell.x && hoveredCell.y === cell.y;
         const isHintCell = hintCell && hintCell.x === cell.x && hintCell.y === cell.y;
-        const isValidNext = isCellValidNext(cell);
-
-
 
         return [
             cell.value !== null && styles.cellWithNumber,
             cell.value === 1 && styles.startCell,
             // La pista tiene prioridad sobre otros estilos
             isHintCell && styles.cellHint,
-            isHovered && !isInPath && isValidNext && !isHintCell && styles.cellHovered,
-            isHovered && !isInPath && !isValidNext && !isHintCell && styles.cellInvalid,
+            // Solo aplicar estilo especial si está en el camino (pero sin cambiar el fondo)
+            isInPath && styles.cellInPath,
         ].filter(Boolean);
     };
 
@@ -272,8 +213,6 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
             isInPath && styles.pathText,
         ].filter(Boolean);
     };
-
-
 
     const renderPathLine = (cell: Cell) => {
         const pathIndex = getCellPathIndex(cell);
@@ -310,32 +249,60 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
                 return (
                     <View style={[
                         styles.pathLine,
-                        dynamicStyles.horizontalLine,
-                        dynamicStyles.lineRight
+                        {
+                            width: cellSize / 2 + 3,
+                            height: 6,
+                            left: cellSize / 2 - 3,
+                            top: (cellSize - 6) / 2,
+                            backgroundColor: '#3B82F6',
+                            borderRadius: 3,
+                            zIndex: 10,
+                        }
                     ]} />
                 );
             case 'left':
                 return (
                     <View style={[
                         styles.pathLine,
-                        dynamicStyles.horizontalLine,
-                        dynamicStyles.lineLeft
+                        {
+                            width: cellSize / 2 + 3,
+                            height: 6,
+                            right: cellSize / 2 - 3,
+                            top: (cellSize - 6) / 2,
+                            backgroundColor: '#3B82F6',
+                            borderRadius: 3,
+                            zIndex: 10,
+                        }
                     ]} />
                 );
             case 'down':
                 return (
                     <View style={[
                         styles.pathLine,
-                        dynamicStyles.verticalLine,
-                        dynamicStyles.lineDown
+                        {
+                            width: 6,
+                            height: cellSize / 2 + 3,
+                            top: cellSize / 2 - 3,
+                            left: (cellSize - 6) / 2,
+                            backgroundColor: '#3B82F6',
+                            borderRadius: 3,
+                            zIndex: 10,
+                        }
                     ]} />
                 );
             case 'up':
                 return (
                     <View style={[
                         styles.pathLine,
-                        dynamicStyles.verticalLine,
-                        dynamicStyles.lineUp
+                        {
+                            width: 6,
+                            height: cellSize / 2 + 3,
+                            bottom: cellSize / 2 - 3,
+                            left: (cellSize - 6) / 2,
+                            backgroundColor: '#3B82F6',
+                            borderRadius: 3,
+                            zIndex: 10,
+                        }
                     ]} />
                 );
             default:
@@ -351,32 +318,60 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
                 return (
                     <View style={[
                         styles.pathLine,
-                        dynamicStyles.horizontalLine,
-                        dynamicStyles.lineLeft
+                        {
+                            width: cellSize / 2 + 3,
+                            height: 6,
+                            right: cellSize / 2 - 3,
+                            top: (cellSize - 6) / 2,
+                            backgroundColor: '#3B82F6',
+                            borderRadius: 3,
+                            zIndex: 10,
+                        }
                     ]} />
                 );
             case 'left':
                 return (
                     <View style={[
                         styles.pathLine,
-                        dynamicStyles.horizontalLine,
-                        dynamicStyles.lineRight
+                        {
+                            width: cellSize / 2 + 3,
+                            height: 6,
+                            left: cellSize / 2 - 3,
+                            top: (cellSize - 6) / 2,
+                            backgroundColor: '#3B82F6',
+                            borderRadius: 3,
+                            zIndex: 10,
+                        }
                     ]} />
                 );
             case 'down':
                 return (
                     <View style={[
                         styles.pathLine,
-                        dynamicStyles.verticalLine,
-                        dynamicStyles.lineUp
+                        {
+                            width: 6,
+                            height: cellSize / 2 + 3,
+                            bottom: cellSize / 2 - 3,
+                            left: (cellSize - 6) / 2,
+                            backgroundColor: '#3B82F6',
+                            borderRadius: 3,
+                            zIndex: 10,
+                        }
                     ]} />
                 );
             case 'up':
                 return (
                     <View style={[
                         styles.pathLine,
-                        dynamicStyles.verticalLine,
-                        dynamicStyles.lineDown
+                        {
+                            width: 6,
+                            height: cellSize / 2 + 3,
+                            top: cellSize / 2 - 3,
+                            left: (cellSize - 6) / 2,
+                            backgroundColor: '#3B82F6',
+                            borderRadius: 3,
+                            zIndex: 10,
+                        }
                     ]} />
                 );
             default:
@@ -579,11 +574,7 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
 
     return (
         <View style={styles.container}>
-            <View
-                ref={gridRef}
-                style={styles.grid}
-                {...panResponder.panHandlers}
-            >
+            <View style={styles.grid}>
                 {grid.map((row, rowIndex) => (
                     <View key={rowIndex} style={styles.row}>
                         {row.map((cell, colIndex) => (
@@ -591,8 +582,10 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
                                 key={`${rowIndex}-${colIndex}`}
                                 style={[dynamicStyles.cell, ...getCellStyle(cell)]}
                                 onPress={() => handleCellPress(cell)}
+                                onLongPress={() => handleCellLongPress(cell)}
                                 activeOpacity={0.7}
-                                disabled={isDragging} // Deshabilitar durante el drag
+                                delayLongPress={300}
+                                hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
                             >
                                 {renderPathLine(cell)}
                                 {cell.value !== null && (
@@ -645,14 +638,8 @@ const styles = StyleSheet.create({
     endCell: {
         backgroundColor: '#F59E0B',
     },
-    cellHovered: {
-        backgroundColor: '#DBEAFE',
+    cellInPath: {
         borderColor: '#3B82F6',
-        borderWidth: 2,
-    },
-    cellInvalid: {
-        backgroundColor: '#FEE2E2',
-        borderColor: '#EF4444',
         borderWidth: 2,
     },
     cellHint: {
@@ -689,6 +676,7 @@ const styles = StyleSheet.create({
     },
     pathText: {
         color: '#3B82F6',
+        fontWeight: 'bold',
     },
     pathLine: {
         position: 'absolute',

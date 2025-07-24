@@ -1,193 +1,217 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     View,
     Text,
+    StyleSheet,
     TouchableOpacity,
     Modal,
-    StyleSheet,
     Switch,
 } from 'react-native';
-import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import { audioService } from '../services/audio';
 
 interface AudioSettingsProps {
-    style?: any;
+    visible: boolean;
+    onClose: () => void;
 }
 
-export default function AudioSettings({ style }: AudioSettingsProps) {
-    const [isModalVisible, setIsModalVisible] = useState(false);
-    const [settings, setSettings] = useState({
-        musicVolume: 0.7,
-        soundVolume: 0.8,
-        musicEnabled: true,
-        soundEnabled: true,
-    });
+const AudioSettings: React.FC<AudioSettingsProps> = ({ visible, onClose }) => {
+    const [musicVolume, setMusicVolume] = useState(0.5);
+    const [soundVolume, setSoundVolume] = useState(0.7);
+    const [musicEnabled, setMusicEnabled] = useState(true);
+    const [soundEnabled, setSoundEnabled] = useState(true);
 
-    useEffect(() => {
-        loadSettings();
+    // Memoizar los valores para evitar re-renders innecesarios
+    const musicVolumeDisplay = useMemo(() => Math.round(musicVolume * 100), [musicVolume]);
+    const soundVolumeDisplay = useMemo(() => Math.round(soundVolume * 100), [soundVolume]);
+
+    // Callbacks estables para evitar re-renders
+    const handleMusicVolumeChange = useCallback(async (newVolume: number) => {
+        setMusicVolume(newVolume);
+        await audioService.setMusicVolume(newVolume);
     }, []);
 
-    const loadSettings = () => {
-        const currentSettings = audioService.getSettings();
-        setSettings(currentSettings);
-    };
+    const handleSoundVolumeChange = useCallback(async (newVolume: number) => {
+        setSoundVolume(newVolume);
+        await audioService.setSoundVolume(newVolume);
+    }, []);
 
-    const handleMusicToggle = async (value: boolean) => {
-        await audioService.setMusicEnabled(value);
-        setSettings(prev => ({ ...prev, musicEnabled: value }));
-    };
+    const handleMusicToggle = useCallback(async (enabled: boolean) => {
+        setMusicEnabled(enabled);
+        await audioService.setMusicEnabled(enabled);
+    }, []);
 
-    const handleSoundToggle = async (value: boolean) => {
-        await audioService.setSoundEnabled(value);
-        setSettings(prev => ({ ...prev, soundEnabled: value }));
-    };
+    const handleSoundToggle = useCallback(async (enabled: boolean) => {
+        setSoundEnabled(enabled);
+        await audioService.setSoundEnabled(enabled);
+    }, []);
 
-    const handleMusicVolumeChange = async (value: number) => {
-        await audioService.setMusicVolume(value);
-        setSettings(prev => ({ ...prev, musicVolume: value }));
-    };
+    const handleVolumeButtonPress = useCallback((type: 'music' | 'sound', direction: 'up' | 'down') => {
+        const currentVolume = type === 'music' ? musicVolume : soundVolume;
+        const step = 0.1;
+        let newVolume = currentVolume;
 
-    const handleSoundVolumeChange = async (value: number) => {
-        await audioService.setSoundVolume(value);
-        setSettings(prev => ({ ...prev, soundVolume: value }));
-    };
+        if (direction === 'up') {
+            newVolume = Math.min(1, currentVolume + step);
+        } else {
+            newVolume = Math.max(0, currentVolume - step);
+        }
+
+        if (type === 'music') {
+            handleMusicVolumeChange(newVolume);
+        } else {
+            handleSoundVolumeChange(newVolume);
+        }
+    }, [musicVolume, soundVolume, handleMusicVolumeChange, handleSoundVolumeChange]);
+
+    useEffect(() => {
+        if (visible) {
+            // Cargar configuración actual
+            const settings = audioService.getSettings();
+            setMusicVolume(settings.musicVolume);
+            setSoundVolume(settings.soundVolume);
+            setMusicEnabled(settings.musicEnabled);
+            setSoundEnabled(settings.soundEnabled);
+        }
+    }, [visible]);
+
+    const renderVolumeBar = useCallback((volume: number, type: 'music' | 'sound') => {
+        const segments = 10;
+        const filledSegments = Math.round(volume * segments);
+
+        return (
+            <View style={styles.volumeBarContainer}>
+                {Array.from({ length: segments }, (_, index) => (
+                    <View
+                        key={index}
+                        style={[
+                            styles.volumeSegment,
+                            index < filledSegments
+                                ? (type === 'music' ? styles.musicSegmentFilled : styles.soundSegmentFilled)
+                                : styles.volumeSegmentEmpty
+                        ]}
+                    />
+                ))}
+            </View>
+        );
+    }, []);
 
     return (
-        <>
-            {/* Botón de configuración */}
-            <TouchableOpacity
-                style={[styles.settingsButton, style]}
-                onPress={() => setIsModalVisible(true)}
-                activeOpacity={0.7}
-            >
-                <Ionicons name="settings-outline" size={24} color="#3B82F6" />
-            </TouchableOpacity>
+        <Modal
+            visible={visible}
+            transparent={true}
+            animationType="slide"
+            onRequestClose={onClose}
+        >
+            <View style={styles.modalOverlay}>
+                <View style={styles.modalContent}>
+                    <View style={styles.header}>
+                        <Text style={styles.title}>Configuración de Audio</Text>
+                        <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                            <Ionicons name="close" size={24} color="#666" />
+                        </TouchableOpacity>
+                    </View>
 
-            {/* Modal de configuración */}
-            <Modal
-                visible={isModalVisible}
-                transparent={true}
-                animationType="slide"
-                onRequestClose={() => setIsModalVisible(false)}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        {/* Header */}
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Configuración de Audio</Text>
-                            <TouchableOpacity
-                                onPress={() => setIsModalVisible(false)}
-                                style={styles.closeButton}
-                            >
-                                <Ionicons name="close" size={24} color="#6B7280" />
-                            </TouchableOpacity>
+                    {/* Música */}
+                    <View style={styles.section}>
+                        <View style={styles.sectionHeader}>
+                            <Ionicons name="musical-notes" size={20} color="#3B82F6" />
+                            <Text style={styles.sectionTitle}>Música de Fondo</Text>
+                            <Switch
+                                value={musicEnabled}
+                                onValueChange={handleMusicToggle}
+                                trackColor={{ false: '#E5E7EB', true: '#3B82F6' }}
+                                thumbColor={musicEnabled ? '#FFFFFF' : '#F3F4F6'}
+                            />
                         </View>
 
-                        {/* Contenido */}
-                        <View style={styles.settingsContainer}>
-                            {/* Música */}
-                            <View style={styles.settingSection}>
-                                <View style={styles.settingHeader}>
-                                    <Ionicons name="musical-notes" size={20} color="#3B82F6" />
-                                    <Text style={styles.settingTitle}>Música de Fondo</Text>
-                                    <Switch
-                                        value={settings.musicEnabled}
-                                        onValueChange={handleMusicToggle}
-                                        trackColor={{ false: '#E5E7EB', true: '#3B82F6' }}
-                                        thumbColor={settings.musicEnabled ? '#FFFFFF' : '#F3F4F6'}
+                        {musicEnabled && (
+                            <View style={styles.volumeControl}>
+                                <TouchableOpacity
+                                    onPress={() => handleVolumeButtonPress('music', 'down')}
+                                    style={styles.volumeButton}
+                                    disabled={musicVolume <= 0}
+                                >
+                                    <Ionicons
+                                        name="remove"
+                                        size={20}
+                                        color={musicVolume <= 0 ? '#D1D5DB' : '#3B82F6'}
                                     />
+                                </TouchableOpacity>
+
+                                <View style={styles.volumeDisplay}>
+                                    {renderVolumeBar(musicVolume, 'music')}
+                                    <Text style={styles.volumeText}>{musicVolumeDisplay}%</Text>
                                 </View>
 
-                                {settings.musicEnabled && (
-                                    <View style={styles.volumeContainer}>
-                                        <Ionicons name="volume-low" size={16} color="#6B7280" />
-                                        <Slider
-                                            style={styles.slider}
-                                            value={settings.musicVolume}
-                                            onValueChange={handleMusicVolumeChange}
-                                            minimumValue={0}
-                                            maximumValue={1}
-                                            step={0.1}
-                                            minimumTrackTintColor="#3B82F6"
-                                            maximumTrackTintColor="#E5E7EB"
-                                            thumbTintColor="#3B82F6"
-                                        />
-                                        <Ionicons name="volume-high" size={16} color="#6B7280" />
-                                    </View>
-                                )}
-                            </View>
-
-                            {/* Efectos de Sonido */}
-                            <View style={styles.settingSection}>
-                                <View style={styles.settingHeader}>
-                                    <Ionicons name="volume-high" size={20} color="#22C55E" />
-                                    <Text style={styles.settingTitle}>Efectos de Sonido</Text>
-                                    <Switch
-                                        value={settings.soundEnabled}
-                                        onValueChange={handleSoundToggle}
-                                        trackColor={{ false: '#E5E7EB', true: '#22C55E' }}
-                                        thumbColor={settings.soundEnabled ? '#FFFFFF' : '#F3F4F6'}
+                                <TouchableOpacity
+                                    onPress={() => handleVolumeButtonPress('music', 'up')}
+                                    style={styles.volumeButton}
+                                    disabled={musicVolume >= 1}
+                                >
+                                    <Ionicons
+                                        name="add"
+                                        size={20}
+                                        color={musicVolume >= 1 ? '#D1D5DB' : '#3B82F6'}
                                     />
-                                </View>
-
-                                {settings.soundEnabled && (
-                                    <View style={styles.volumeContainer}>
-                                        <Ionicons name="volume-low" size={16} color="#6B7280" />
-                                        <Slider
-                                            style={styles.slider}
-                                            value={settings.soundVolume}
-                                            onValueChange={handleSoundVolumeChange}
-                                            minimumValue={0}
-                                            maximumValue={1}
-                                            step={0.1}
-                                            minimumTrackTintColor="#22C55E"
-                                            maximumTrackTintColor="#E5E7EB"
-                                            thumbTintColor="#22C55E"
-                                        />
-                                        <Ionicons name="volume-high" size={16} color="#6B7280" />
-                                    </View>
-                                )}
+                                </TouchableOpacity>
                             </View>
+                        )}
+                    </View>
 
-                            {/* Información */}
-                            <View style={styles.infoSection}>
-                                <Text style={styles.infoText}>
-                                    • La música cambia automáticamente según la pantalla
-                                </Text>
-                                <Text style={styles.infoText}>
-                                    • Los efectos se reproducen durante el juego
-                                </Text>
-                            </View>
+                    {/* Efectos de Sonido */}
+                    <View style={styles.section}>
+                        <View style={styles.sectionHeader}>
+                            <Ionicons name="volume-high" size={20} color="#22C55E" />
+                            <Text style={styles.sectionTitle}>Efectos de Sonido</Text>
+                            <Switch
+                                value={soundEnabled}
+                                onValueChange={handleSoundToggle}
+                                trackColor={{ false: '#E5E7EB', true: '#22C55E' }}
+                                thumbColor={soundEnabled ? '#FFFFFF' : '#F3F4F6'}
+                            />
                         </View>
+
+                        {soundEnabled && (
+                            <View style={styles.volumeControl}>
+                                <TouchableOpacity
+                                    onPress={() => handleVolumeButtonPress('sound', 'down')}
+                                    style={styles.volumeButton}
+                                    disabled={soundVolume <= 0}
+                                >
+                                    <Ionicons
+                                        name="remove"
+                                        size={20}
+                                        color={soundVolume <= 0 ? '#D1D5DB' : '#22C55E'}
+                                    />
+                                </TouchableOpacity>
+
+                                <View style={styles.volumeDisplay}>
+                                    {renderVolumeBar(soundVolume, 'sound')}
+                                    <Text style={styles.volumeText}>{soundVolumeDisplay}%</Text>
+                                </View>
+
+                                <TouchableOpacity
+                                    onPress={() => handleVolumeButtonPress('sound', 'up')}
+                                    style={styles.volumeButton}
+                                    disabled={soundVolume >= 1}
+                                >
+                                    <Ionicons
+                                        name="add"
+                                        size={20}
+                                        color={soundVolume >= 1 ? '#D1D5DB' : '#22C55E'}
+                                    />
+                                </TouchableOpacity>
+                            </View>
+                        )}
                     </View>
                 </View>
-            </Modal>
-        </>
+            </View>
+        </Modal>
     );
-}
+};
 
 const styles = StyleSheet.create({
-    settingsButton: {
-        position: 'absolute',
-        top: 50,
-        right: 20,
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: '#FFFFFF',
-        justifyContent: 'center',
-        alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: {
-            width: 0,
-            height: 2,
-        },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
-        zIndex: 1000,
-    },
     modalOverlay: {
         flex: 1,
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -196,26 +220,23 @@ const styles = StyleSheet.create({
     },
     modalContent: {
         backgroundColor: '#FFFFFF',
-        borderRadius: 20,
+        borderRadius: 16,
         padding: 24,
-        width: '85%',
-        maxWidth: 350,
+        width: '90%',
+        maxWidth: 400,
         shadowColor: '#000',
-        shadowOffset: {
-            width: 0,
-            height: 10,
-        },
-        shadowOpacity: 0.25,
-        shadowRadius: 20,
-        elevation: 10,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+        elevation: 8,
     },
-    modalHeader: {
+    header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         marginBottom: 24,
     },
-    modalTitle: {
+    title: {
         fontSize: 20,
         fontWeight: 'bold',
         color: '#1F2937',
@@ -223,44 +244,66 @@ const styles = StyleSheet.create({
     closeButton: {
         padding: 4,
     },
-    settingsContainer: {
-        gap: 24,
+    section: {
+        marginBottom: 24,
     },
-    settingSection: {
-        gap: 12,
-    },
-    settingHeader: {
+    sectionHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
+        justifyContent: 'space-between',
+        marginBottom: 12,
     },
-    settingTitle: {
+    sectionTitle: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#1F2937',
+        color: '#374151',
         flex: 1,
+        marginLeft: 8,
     },
-    volumeContainer: {
+    volumeControl: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
-        paddingLeft: 32,
     },
-    slider: {
-        flex: 1,
+    volumeButton: {
+        width: 40,
         height: 40,
+        borderRadius: 20,
+        backgroundColor: '#F3F4F6',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-    infoSection: {
-        backgroundColor: '#F8FAFC',
-        padding: 16,
-        borderRadius: 12,
-        borderLeftWidth: 4,
-        borderLeftColor: '#3B82F6',
+    volumeDisplay: {
+        flex: 1,
+        alignItems: 'center',
     },
-    infoText: {
-        fontSize: 14,
-        color: '#6B7280',
-        lineHeight: 20,
+    volumeBarContainer: {
+        flexDirection: 'row',
+        gap: 2,
         marginBottom: 4,
     },
-}); 
+    volumeSegment: {
+        width: 20,
+        height: 8,
+        borderRadius: 4,
+    },
+    volumeSegmentEmpty: {
+        backgroundColor: '#E5E7EB',
+    },
+    volumeSegmentFilled: {
+        backgroundColor: '#3B82F6',
+    },
+    musicSegmentFilled: {
+        backgroundColor: '#3B82F6',
+    },
+    soundSegmentFilled: {
+        backgroundColor: '#22C55E',
+    },
+    volumeText: {
+        fontSize: 12,
+        color: '#6B7280',
+        fontWeight: '500',
+    },
+});
+
+export default AudioSettings; 
