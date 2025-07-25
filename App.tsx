@@ -150,6 +150,10 @@ export default function App() {
       setCurrentScreen('menu');
       // Cambiar a música de menú
       audioService.playBackgroundMusic('menu');
+    } else if (currentScreen === 'tutorial') {
+      setCurrentScreen('menu');
+      // Cambiar a música de menú
+      audioService.playBackgroundMusic('menu');
     }
   };
 
@@ -267,7 +271,7 @@ export default function App() {
 
               {/* Footer */}
               <View style={styles.footer}>
-                <Text style={styles.footerText}>Versión 1.0.3</Text>
+                <Text style={styles.footerText}>Versión 1.1.0</Text>
               </View>
             </View>
           </SafeAreaView>
