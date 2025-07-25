@@ -7,6 +7,7 @@ import {
     Dimensions,
     Pressable,
     Alert,
+    PanResponder,
 } from 'react-native';
 import { audioService } from '../services/audio';
 
@@ -33,22 +34,22 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
     const [path, setPath] = useState<Cell[]>([]);
     const [isDrawing, setIsDrawing] = useState(false);
     const [hintCell, setHintCell] = useState<Cell | null>(null);
+    const [isDragging, setIsDragging] = useState(false);
+    const [lastProcessedCell, setLastProcessedCell] = useState<Cell | null>(null);
+
+    // Referencias para el mapeo de coordenadas
+    const gridRef = useRef<View>(null);
+    const cellRefs = useRef<{ [key: string]: View }>({});
+
+    // Referencia para isDragging para evitar problemas de timing
+    const isDraggingRef = useRef(false);
+
+    // Referencia para el path actual para evitar problemas de closure
+    const pathRef = useRef<Cell[]>([]);
 
     // Validar que la solución sea válida al cargar
     useEffect(() => {
-        if (solution && solution.length > 0) {
-            const isValidSolution = solution.every((cell, index) => {
-                if (index === 0) {
-                    // La primera celda debe ser el número 1
-                    return grid[cell.y] && grid[cell.y][cell.x] && grid[cell.y][cell.x].value === 1;
-                }
-                return true;
-            });
-
-            if (!isValidSolution) {
-                console.warn('⚠️ La solución no empieza en el número 1');
-            }
-        }
+        // Validación silenciosa de la solución
     }, [solution, grid]);
 
     // Encontrar el número 1 (punto de partida)
@@ -58,8 +59,12 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
 
     const resetPath = () => {
         setPath([]);
+        pathRef.current = [];
         setIsDrawing(false);
         setHintCell(null);
+        setIsDragging(false);
+        isDraggingRef.current = false;
+        setLastProcessedCell(null);
         onPathChange?.([]);
     };
 
@@ -76,14 +81,14 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
     };
 
     const isCellValidNext = (cell: Cell): boolean => {
-        if (path.length === 0) {
+        if (pathRef.current.length === 0) {
             return cell.value === 1; // Solo puede empezar en el número 1
         }
 
-        const lastCell = path[path.length - 1];
+        const lastCell = pathRef.current[pathRef.current.length - 1];
 
         // Verificar si ya está en el camino (para retroceder)
-        const cellIndex = path.findIndex(pathCell =>
+        const cellIndex = pathRef.current.findIndex(pathCell =>
             pathCell.x === cell.x && pathCell.y === cell.y
         );
         if (cellIndex !== -1) {
@@ -91,7 +96,8 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
         }
 
         // Verificar si es adyacente
-        if (!isCellAdjacent(cell, lastCell)) {
+        const isAdjacent = isCellAdjacent(cell, lastCell);
+        if (!isAdjacent) {
             return false;
         }
 
@@ -100,7 +106,7 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
         const maxNumber = Math.max(...numberedCells.map(cell => cell.value || 0));
 
         // Verificar si es el siguiente número en secuencia
-        const numberedCellsInPath = path.filter(c => c.value !== null);
+        const numberedCellsInPath = pathRef.current.filter(c => c.value !== null);
         const nextExpectedNumber = numberedCellsInPath.length + 1;
 
         // Si la celda tiene un número, debe ser el siguiente en secuencia
@@ -116,48 +122,177 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
     };
 
     const addCellToPath = (cell: Cell) => {
-        // Limpiar pista cuando el usuario hace cambios
-        if (hintCell) {
-            setHintCell(null);
+        const path = pathRef.current;
+        // Si el path está vacío, solo permite empezar en el número 1
+        if (path.length === 0) {
+            if (cell.value === 1) {
+                setPath([cell]);
+                pathRef.current = [cell];
+                onPathChange?.([cell]);
+                audioService.playForwardSound();
+            }
+            return;
         }
 
-        // Verificar si ya está en el camino (retroceder)
-        const cellIndex = path.findIndex(pathCell =>
-            pathCell.x === cell.x && pathCell.y === cell.y
-        );
+        // Si la celda es la última del path, no hacer nada
+        const lastCell = path[path.length - 1];
+        if (lastCell.x === cell.x && lastCell.y === cell.y) {
+            return;
+        }
 
+        // Si la celda ya está en el path (retroceso)
+        const cellIndex = path.findIndex(c => c.x === cell.x && c.y === cell.y);
         if (cellIndex !== -1) {
-            // Retroceder hasta ese punto
             const newPath = path.slice(0, cellIndex + 1);
             setPath(newPath);
+            pathRef.current = newPath;
             onPathChange?.(newPath);
-            // Reproducir sonido de retroceso
             audioService.playBackSound();
             return;
         }
 
-        // Verificar si es válido para añadir
-        if (!isCellValidNext(cell)) {
+        // Solo añadir si es adyacente y no está en el path
+        if (isCellAdjacent(cell, lastCell)) {
+            // Validar si es el siguiente número correcto
+            if (isCellValidNext(cell)) {
+                const newPath = [...path, cell];
+                setPath(newPath);
+                pathRef.current = newPath;
+                onPathChange?.(newPath);
+                audioService.playForwardSound();
+            }
+        }
+    };
+
+    // Función para obtener la celda en una posición específica
+    const getCellAtPosition = (x: number, y: number): Cell | null => {
+        if (x < 0 || x >= grid[0].length || y < 0 || y >= grid.length) {
+            return null;
+        }
+        return grid[y][x];
+    };
+
+
+
+
+
+    // Función para procesar el arrastre
+    const processDrag = (screenX: number, screenY: number) => {
+        // Usar gridRef.current.measure directamente para evitar problemas de timing
+        if (!gridRef.current) {
             return;
         }
 
-        // Añadir celda al camino
-        const newPath = [...path, cell];
-        setPath(newPath);
-        onPathChange?.(newPath);
+        gridRef.current.measure((x, y, width, height, pageX, pageY) => {
 
-        // Reproducir sonido de avance
-        audioService.playForwardSound();
+            const relativeX = screenX - pageX;
+            const relativeY = screenY - pageY;
+
+            // Verificar si el toque está dentro del grid
+            if (relativeX < 0 || relativeX > width || relativeY < 0 || relativeY > height) {
+                return;
+            }
+
+            const cellSize = getCellSize(grid.length);
+            const cellMargin = 1; // Margen entre celdas
+            const gridPadding = 4; // Padding del grid
+
+            // Ajustar coordenadas considerando padding y márgenes
+            const adjustedX = relativeX - gridPadding;
+            const adjustedY = relativeY - gridPadding;
+
+            // Calcular coordenadas de celda considerando márgenes
+            const cellX = Math.floor(adjustedX / (cellSize + cellMargin * 2));
+            const cellY = Math.floor(adjustedY / (cellSize + cellMargin * 2));
+
+            // Verificar que las coordenadas estén dentro del rango del grid
+            if (cellX < 0 || cellX >= grid[0].length || cellY < 0 || cellY >= grid.length) {
+                return;
+            }
+
+            const cell = getCellAtPosition(cellX, cellY);
+            if (!cell) {
+                return;
+            }
+
+            // Evitar procesar la misma celda múltiples veces
+            if (lastProcessedCell &&
+                lastProcessedCell.x === cell.x &&
+                lastProcessedCell.y === cell.y) {
+                return;
+            }
+
+            setLastProcessedCell(cell);
+
+            // Si no hay camino iniciado y es el número 1, iniciar
+            if (pathRef.current.length === 0 && cell.value === 1) {
+                const newPath = [cell];
+                setPath(newPath);
+                pathRef.current = newPath;
+                setIsDrawing(true);
+                onPathChange?.(newPath);
+                audioService.playForwardSound();
+                return;
+            }
+
+            // Si hay un camino iniciado, intentar añadir la celda
+            if (pathRef.current.length > 0) {
+                addCellToPath(cell);
+            }
+        });
     };
 
-    const handleCellPress = (cell: Cell) => {
-        console.log(`🖱️ Celda presionada: (${cell.x}, ${cell.y}) - Valor: ${cell.value}`);
+    // Configurar PanResponder para el arrastre
+    const panResponder = useRef(
+        PanResponder.create({
+            onStartShouldSetPanResponder: () => {
+                return false; // No capturar inmediatamente
+            },
+            onMoveShouldSetPanResponder: (evt, gestureState) => {
+                // Solo capturar si hay movimiento significativo (más de 5 píxeles)
+                const distance = Math.sqrt(gestureState.dx * gestureState.dx + gestureState.dy * gestureState.dy);
+                return distance > 5;
+            },
+            onPanResponderGrant: (evt) => {
+                setIsDragging(true);
+                isDraggingRef.current = true;
+                setLastProcessedCell(null);
 
+                // Procesar el toque inicial
+                const { pageX, pageY } = evt.nativeEvent;
+                processDrag(pageX, pageY);
+            },
+            onPanResponderMove: (evt) => {
+                if (!isDraggingRef.current) {
+                    return;
+                }
+
+                const { pageX, pageY } = evt.nativeEvent;
+                processDrag(pageX, pageY);
+            },
+            onPanResponderRelease: () => {
+                setIsDragging(false);
+                isDraggingRef.current = false;
+                setLastProcessedCell(null);
+            },
+            onPanResponderTerminate: () => {
+                setIsDragging(false);
+                isDraggingRef.current = false;
+                setLastProcessedCell(null);
+            },
+        })
+    ).current;
+
+
+
+    const handleCellPress = (cell: Cell) => {
         // Si es el número 1, iniciar nuevo camino
         if (cell.value === 1) {
-            setPath([cell]);
+            const newPath = [cell];
+            setPath(newPath);
+            pathRef.current = newPath;
             setIsDrawing(true);
-            onPathChange?.([cell]);
+            onPathChange?.(newPath);
             audioService.playForwardSound();
             return;
         }
@@ -171,13 +306,13 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
     };
 
     const handleCellLongPress = (cell: Cell) => {
-        console.log(`🔍 Long press en celda: (${cell.x}, ${cell.y})`);
-
         // Permitir iniciar desde cualquier celda con long press
         if (path.length === 0) {
-            setPath([cell]);
+            const newPath = [cell];
+            setPath(newPath);
+            pathRef.current = newPath;
             setIsDrawing(true);
-            onPathChange?.([cell]);
+            onPathChange?.(newPath);
             audioService.playForwardSound();
         } else {
             addCellToPath(cell);
@@ -389,8 +524,6 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
     };
 
     const getHint = (): string => {
-        console.log('🔍 CALCULANDO PISTA - Camino actual:', path.map(c => `(${c.x},${c.y})`).join(' -> '));
-
         if (!solution || solution.length === 0) {
             return "No hay solución disponible para este nivel";
         }
@@ -574,18 +707,31 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
 
     return (
         <View style={styles.container}>
-            <View style={styles.grid}>
+            <View
+                ref={gridRef}
+                style={styles.grid}
+                {...panResponder.panHandlers}
+            >
                 {grid.map((row, rowIndex) => (
                     <View key={rowIndex} style={styles.row}>
                         {row.map((cell, colIndex) => (
                             <TouchableOpacity
                                 key={`${rowIndex}-${colIndex}`}
                                 style={[dynamicStyles.cell, ...getCellStyle(cell)]}
-                                onPress={() => handleCellPress(cell)}
-                                onLongPress={() => handleCellLongPress(cell)}
+                                onPress={() => {
+                                    handleCellPress(cell);
+                                }}
+                                onLongPress={() => {
+                                    handleCellLongPress(cell);
+                                }}
                                 activeOpacity={0.7}
                                 delayLongPress={300}
                                 hitSlop={{ top: 5, bottom: 5, left: 5, right: 5 }}
+                                ref={(ref) => {
+                                    if (ref) {
+                                        cellRefs.current[`${rowIndex}-${colIndex}`] = ref;
+                                    }
+                                }}
                             >
                                 {renderPathLine(cell)}
                                 {cell.value !== null && (
