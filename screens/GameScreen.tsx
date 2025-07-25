@@ -253,7 +253,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ level, onBack, onLevelComplete,
                     <Text style={styles.backButtonText}>←</Text>
                 </TouchableOpacity>
                 <View style={styles.titleContainer}>
-                    <Text style={styles.title}>Nivel {level.difficulty}</Text>
+                    <Text style={styles.title}>Nivel {level.id.replace(/^level_/i, '').replace(/^0+/, '')}</Text>
                     <Text style={styles.subtitle}>{getDifficultyText(level.difficulty)} • {level.gridSize}x{level.gridSize}</Text>
                 </View>
                 <View style={styles.headerRight}>

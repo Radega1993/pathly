@@ -3,6 +3,7 @@ import { StyleSheet, View, Text, SafeAreaView, TouchableOpacity, AppState } from
 import { Ionicons } from '@expo/vector-icons';
 import LevelSelectScreen from './screens/LevelSelectScreen';
 import GameScreen from './screens/GameScreen';
+import TutorialScreen from './screens/TutorialScreen';
 import Logo from './components/Logo';
 import AudioSettings from './components/AudioSettings';
 import AuthModal from './components/AuthModal';
@@ -12,7 +13,7 @@ import { audioService } from './services/audio';
 import { authService, User, AuthState } from './services/auth';
 import { cleanupExpiredCache } from './services/levelService';
 
-type AppScreen = 'menu' | 'levelSelect' | 'game';
+type AppScreen = 'menu' | 'levelSelect' | 'game' | 'tutorial';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<AppScreen>('menu');
@@ -169,6 +170,11 @@ export default function App() {
     setShowAudioSettings(false);
   };
 
+  const handleShowTutorial = () => {
+    console.log('🔍 handleShowTutorial called');
+    setCurrentScreen('tutorial');
+  };
+
   const renderScreen = () => {
     switch (currentScreen) {
       case 'menu':
@@ -238,12 +244,18 @@ export default function App() {
 
               {/* Información del juego */}
               <View style={styles.gameInfo}>
-                <View style={styles.infoCard}>
-                  <Text style={styles.infoTitle}>🎮 Cómo jugar</Text>
-                  <Text style={styles.infoText}>
-                    Conecta los números en orden para completar cada nivel
-                  </Text>
-                </View>
+                <TouchableOpacity style={styles.tutorialCard} onPress={handleShowTutorial}>
+                  <View style={styles.tutorialIcon}>
+                    <Text style={styles.tutorialIconText}>📚</Text>
+                  </View>
+                  <View style={styles.tutorialContent}>
+                    <Text style={styles.tutorialTitle}>🎮 Cómo jugar</Text>
+                    <Text style={styles.tutorialText}>
+                      Aprende las reglas y estrategias del juego
+                    </Text>
+                    <Text style={styles.tutorialButton}>Toca para ver el tutorial →</Text>
+                  </View>
+                </TouchableOpacity>
 
                 <View style={styles.infoCard}>
                   <Text style={styles.infoTitle}>🚀 Nuevos niveles</Text>
@@ -280,6 +292,13 @@ export default function App() {
           />
         ) : null;
 
+      case 'tutorial':
+        return (
+          <TutorialScreen
+            onBack={handleBack}
+          />
+        );
+
       default:
         return null;
     }
@@ -298,6 +317,7 @@ export default function App() {
         visible={showAudioSettings}
         onClose={handleCloseAudioSettings}
       />
+
     </>
   );
 }
@@ -423,6 +443,56 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
     lineHeight: 20,
+  },
+  tutorialCard: {
+    backgroundColor: '#EFF6FF',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: '#3B82F6',
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#3B82F6',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  tutorialIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#3B82F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 15,
+  },
+  tutorialIconText: {
+    fontSize: 24,
+  },
+  tutorialContent: {
+    flex: 1,
+  },
+  tutorialTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginBottom: 4,
+  },
+  tutorialText: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  tutorialButton: {
+    fontSize: 12,
+    color: '#3B82F6',
+    fontWeight: '600',
   },
   footer: {
     alignItems: 'center',
