@@ -22,6 +22,18 @@ export {
     clearProgress
 } from './storage';
 
+// Exportar funciones del servicio de sincronización
+export {
+    syncOnRegister,
+    syncOnLogin,
+    syncToCloud,
+    syncFromCloud,
+    getCloudProgress,
+    compareProgress,
+    forceSyncToCloud,
+    forceSyncFromCloud
+} from './syncService';
+
 // Exportar funciones del servicio de anuncios
 export {
     showInterstitialAd,
@@ -37,18 +49,23 @@ export {
 // Exportar funciones del servicio de autenticación
 export {
     authService,
-    signInWithGoogle,
+    register,
+    login,
+    resetPassword,
     signOut,
     getCurrentUser,
     isPremium,
     getUserType,
-    subscribeToAuthState
+    subscribeToAuthState,
+    loadSessionFromStorage,
+    isAuthInitialized
 } from './auth';
 
 // Exportar tipos
 export type { Level, Difficulty, FirestoreLevel } from '../types/level';
 export type { Progress } from './storage';
-export type { User, AuthState } from './auth';
+export type { User, AuthState, LoginCredentials, RegisterCredentials } from './auth';
+export type { CloudProgress, UserDocument } from './syncService';
 
 // Exportar funciones del servicio de compras
 export {

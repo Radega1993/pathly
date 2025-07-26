@@ -15,7 +15,7 @@ import { updateService, UpdateInfo } from '../services/updateService';
 interface UpdateAlertProps {
     visible: boolean;
     onClose: () => void;
-    updateInfo: UpdateInfo;
+    updateInfo: UpdateInfo | null;
 }
 
 const { width } = Dimensions.get('window');
@@ -28,6 +28,8 @@ const UpdateAlert: React.FC<UpdateAlertProps> = ({
     const [isLoading, setIsLoading] = useState(false);
 
     const handleUpdate = async () => {
+        if (!updateInfo) return;
+
         setIsLoading(true);
         try {
             const canOpen = await Linking.canOpenURL(updateInfo.updateUrl);
@@ -53,6 +55,8 @@ const UpdateAlert: React.FC<UpdateAlertProps> = ({
     };
 
     const handleDismiss = async () => {
+        if (!updateInfo) return;
+
         try {
             await updateService.dismissUpdate(updateInfo.latestVersion || '');
             onClose();
@@ -65,6 +69,11 @@ const UpdateAlert: React.FC<UpdateAlertProps> = ({
     const handleRemindLater = () => {
         onClose();
     };
+
+    // No mostrar el modal si no hay información de actualización
+    if (!updateInfo) {
+        return null;
+    }
 
     return (
         <Modal
@@ -93,11 +102,11 @@ const UpdateAlert: React.FC<UpdateAlertProps> = ({
                         <View style={styles.versionInfo}>
                             <View style={styles.versionRow}>
                                 <Text style={styles.versionLabel}>Versión actual:</Text>
-                                <Text style={styles.versionValue}>{updateInfo.currentVersion}</Text>
+                                <Text style={styles.versionValue}>{updateInfo?.currentVersion || 'N/A'}</Text>
                             </View>
                             <View style={styles.versionRow}>
                                 <Text style={styles.versionLabel}>Nueva versión:</Text>
-                                <Text style={styles.versionValueNew}>{updateInfo.latestVersion}</Text>
+                                <Text style={styles.versionValueNew}>{updateInfo?.latestVersion || 'N/A'}</Text>
                             </View>
                         </View>
 

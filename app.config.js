@@ -31,13 +31,23 @@ export default {
                 "android.permission.ACCESS_NETWORK_STATE"
             ],
             config: {
-                googleMobileAdsAppId: process.env.ADMOB_ANDROID_APP_ID || "ca-app-pub-4553067801626383~6760188699"
+                googleMobileAdsAppId: process.env.ADMOB_ANDROID_APP_ID
             }
         },
         web: {
             favicon: "./assets/favicon.png"
         },
         scheme: "com.pathly.game",
+        plugins: [
+            [
+                "react-native-google-mobile-ads",
+                {
+                    androidAppId: process.env.ADMOB_ANDROID_APP_ID,
+                    iosAppId: process.env.ADMOB_ANDROID_APP_ID,
+                    userTrackingDescription: "This identifier will be used to deliver personalized ads to you.",
+                },
+            ],
+        ],
         extra: {
             // Variables de entorno de Firebase
             firebaseApiKey: process.env.FIREBASE_API_KEY,

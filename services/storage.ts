@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { syncToCloud } from './syncService';
 
 // Claves para AsyncStorage
 const STORAGE_KEYS = {
@@ -106,6 +107,9 @@ export const markLevelCompleted = async (levelId: string): Promise<void> => {
         progress.lastPlayedAt = Date.now();
 
         await saveProgress(progress);
+
+        // Sincronizar con la nube automáticamente
+        await syncToCloud();
     } catch (error) {
         console.error('Error al marcar nivel como completado:', error);
         throw new Error('No se pudo marcar el nivel como completado');
@@ -134,6 +138,9 @@ export const getLastLevelPlayed = async (): Promise<string | null> => {
 export const setLastLevelPlayed = async (levelId: string): Promise<void> => {
     try {
         await AsyncStorage.setItem(STORAGE_KEYS.LAST_LEVEL, levelId);
+
+        // Sincronizar con la nube automáticamente
+        await syncToCloud();
     } catch (error) {
         console.error('Error al guardar último nivel jugado:', error);
         throw new Error('No se pudo guardar el último nivel jugado');

@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 
 /**
- * Script para probar la integración de AdMob
- * Ejecutar: node scripts/test-admob-integration.js
+ * Script simplificado para probar AdMob
+ * Ejecutar: node scripts/test-admob-simple.js
  */
 
 const fs = require('fs');
 const path = require('path');
 
-console.log('🧪 Testing AdMob Integration...\n');
+console.log('🧪 Testing AdMob Configuration (Simplified)...\n');
 
 // Verificar que expo-ads-admob está instalado
 const packageJsonPath = path.join(__dirname, '..', 'package.json');
@@ -16,7 +16,6 @@ const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
 
 if (!packageJson.dependencies['expo-ads-admob']) {
     console.error('❌ expo-ads-admob no está instalado');
-    console.log('💡 Ejecuta: npm install expo-ads-admob');
     process.exit(1);
 }
 
@@ -35,18 +34,18 @@ if (!admobPlugin) {
     process.exit(1);
 }
 
-console.log('✅ Plugin expo-ads-admob está configurado en app.json');
+console.log('✅ Plugin expo-ads-admob está configurado');
 console.log(`   Android App ID: ${admobPlugin[1].androidAppId}`);
 
 // Verificar configuración en services/ads.ts
 const adsServicePath = path.join(__dirname, '..', 'services', 'ads.ts');
 const adsServiceContent = fs.readFileSync(adsServicePath, 'utf8');
 
-// Verificar que usa IDs de test
-if (adsServiceContent.includes('TEST_IDS')) {
-    console.log('✅ Usando IDs de TEST para close tester');
+// Verificar que usa IDs de producción
+if (adsServiceContent.includes('4553067801626383')) {
+    console.log('✅ Usando IDs de PRODUCCIÓN');
 } else {
-    console.warn('⚠️  No se detectaron IDs de TEST, verificar configuración');
+    console.warn('⚠️  No se detectaron IDs de PRODUCCIÓN');
 }
 
 // Verificar que importa la librería correcta
@@ -67,7 +66,7 @@ console.log('✅ No usa mocks, usa la librería real');
 
 // Verificar configuración de test device
 if (adsServiceContent.includes('setTestDeviceIDAsync')) {
-    console.log('✅ Configura test device para desarrollo');
+    console.log('✅ Configura test device');
 } else {
     console.warn('⚠️  No configura test device');
 }
@@ -75,20 +74,25 @@ if (adsServiceContent.includes('setTestDeviceIDAsync')) {
 console.log('\n🎯 Resumen de configuración:');
 console.log('   - Librería instalada: ✅');
 console.log('   - Plugin configurado: ✅');
-console.log('   - IDs de TEST: ✅');
+console.log('   - IDs de PRODUCCIÓN: ✅');
 console.log('   - Sin mocks: ✅');
 console.log('   - Test device: ✅');
 
 console.log('\n📱 Para probar en close tester:');
 console.log('   1. Ejecuta: npm start');
 console.log('   2. Escanea el QR con la app de Expo Go');
-console.log('   3. Los anuncios deberían aparecer como test ads');
+console.log('   3. Los anuncios deberían aparecer como ads reales');
 console.log('   4. Verifica en la consola los logs de AdMob');
 
 console.log('\n🔧 Si los anuncios no aparecen:');
 console.log('   - Verifica la conexión a internet');
 console.log('   - Asegúrate de estar en modo close tester');
 console.log('   - Revisa los logs en la consola de Expo');
-console.log('   - Los test ads pueden tardar unos segundos en cargar');
+console.log('   - Los ads pueden tardar unos segundos en cargar');
+
+console.log('\n⚠️  Nota importante:');
+console.log('   - Estos son ads de PRODUCCIÓN reales');
+console.log('   - Contarán hacia tu cuenta de AdMob');
+console.log('   - Asegúrate de que tu cuenta esté aprobada');
 
 console.log('\n✅ Test completado exitosamente!'); 

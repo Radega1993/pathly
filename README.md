@@ -18,7 +18,7 @@ Un juego de puzzle adictivo donde conectas números en orden para completar cada
 
 - **Frontend**: React Native + Expo (Managed Workflow)
 - **Lenguaje**: TypeScript
-- **Backend**: Firebase (Firestore + Auth)
+- **Backend**: Firebase (Firestore + Auth con Email/Password)
 - **Monetización**: Google AdMob
 - **Generador**: Python API con IA
 
@@ -27,6 +27,7 @@ Un juego de puzzle adictivo donde conectas números en orden para completar cada
 - 🗺️ **Sistema de niveles** con progreso local
 - 🎯 **Sistema de pistas inteligente** con coordenadas corregidas
 - 💾 **Persistencia de datos** con AsyncStorage
+- 🔐 **Sistema de autenticación** con email/contraseña y recuperación
 - 🎨 **UI/UX moderna** con paleta de colores definida
 - 🔧 **Generador de niveles** en Python
 - 📱 **Multiplataforma** (Android, iOS, Web)
@@ -124,9 +125,70 @@ releases/
 - **Indicador de nivel ya completado** anteriormente
 - **Estadísticas en tiempo real** de niveles completados
 
+## 🔐 Sistema de Autenticación
+
+El juego incluye un sistema completo de autenticación con Firebase Auth que permite a los usuarios crear cuentas, iniciar sesión y recuperar contraseñas olvidadas.
+
+### Características del Sistema
+
+- **Registro de usuarios** con email y contraseña
+- **Inicio de sesión** con validación de credenciales
+- **Recuperación de contraseña** por email
+- **Persistencia de sesión** automática
+- **Sincronización de progreso** en la nube
+- **Validaciones robustas** de seguridad
+
+### Funciones Principales
+
+```typescript
+import {
+  register,
+  login,
+  resetPassword,
+  signOut,
+  getCurrentUser,
+  subscribeToAuthState,
+} from './services/auth';
+
+// Registrar nuevo usuario
+const user = await register({
+  email: 'usuario@ejemplo.com',
+  password: 'contraseña123',
+  displayName: 'Usuario Ejemplo'
+});
+
+// Iniciar sesión
+const user = await login({
+  email: 'usuario@ejemplo.com',
+  password: 'contraseña123'
+});
+
+// Recuperar contraseña
+await resetPassword('usuario@ejemplo.com');
+
+// Cerrar sesión
+await signOut();
+
+// Obtener usuario actual
+const currentUser = getCurrentUser();
+
+// Suscribirse a cambios de autenticación
+const unsubscribe = subscribeToAuthState((state) => {
+  console.log('Estado de auth:', state);
+});
+```
+
+### Políticas de Seguridad
+
+- **Contraseñas mínimas**: 6 caracteres
+- **Validación de email**: Formato correcto requerido
+- **Límite de intentos**: Protección contra ataques de fuerza bruta
+- **Tokens seguros**: Firebase maneja la seguridad de tokens
+- **Persistencia local**: Sesión mantenida hasta logout explícito
+
 ## 💾 Sistema de Progreso Local
 
-El juego utiliza AsyncStorage para guardar el progreso del usuario localmente, sin necesidad de autenticación.
+El juego utiliza AsyncStorage para guardar el progreso del usuario localmente, con sincronización opcional a la nube cuando el usuario está autenticado.
 
 ### Funciones Principales
 
@@ -286,13 +348,21 @@ Conectar todos los números en orden (1 → 2 → 3 → 4) usando **TODAS** las 
 Pathly/
 ├── components/          # Componentes UI reutilizables
 │   ├── Grid.tsx        # Componente principal del grid
+│   ├── AuthModal.tsx   # Modal de autenticación
 │   └── Logo.tsx        # Componente de logo reutilizable
 ├── screens/            # Pantallas de la aplicación
 │   ├── LevelSelectScreen.tsx  # Pantalla de selección de niveles
 │   └── GameScreen.tsx         # Pantalla de juego individual
 ├── services/           # Servicios (Firebase, etc.)
+│   ├── auth.ts         # Servicio de autenticación
+│   ├── firebase.ts     # Configuración de Firebase
+│   └── ...             # Otros servicios
 ├── utils/              # Utilidades y helpers
 │   └── validatePath.ts # Validación de caminos
+├── docs/               # Documentación
+│   ├── AUTH_SYSTEM.md  # Documentación del sistema de auth
+│   ├── AUTH_EXAMPLE.md # Ejemplos de uso del auth
+│   └── ...             # Otra documentación
 ├── assets/             # Recursos gráficos
 │   ├── logo.png        # Logo oficial de Pathly Game
 │   ├── icon.png        # Icono principal de la app
@@ -304,6 +374,11 @@ Pathly/
 ├── App.tsx             # Componente principal con navegación
 └── README.md           # Documentación
 ```
+
+## 📚 Documentación Adicional
+
+- [🔐 Sistema de Autenticación](./docs/AUTH_SYSTEM.md) - Documentación completa del sistema de auth
+- [📱 Ejemplos de Uso](./docs/AUTH_EXAMPLE.md) - Ejemplos prácticos de implementación
 
 ## 🔧 Desarrollo
 
@@ -322,7 +397,9 @@ Pathly/
 - [x] ✅ Generador de niveles con IA
 - [x] ✅ Sistema de pistas inteligente
 - [x] ✅ Integración con Firebase
+- [x] ✅ Sistema de autenticación con email/contraseña
 - [ ] Monetización con anuncios y pagos
+- [ ] Sincronización de progreso en la nube
 
 ## 📄 Licencia
 

@@ -361,11 +361,13 @@ export default function App() {
         visible={showAudioSettings}
         onClose={handleCloseAudioSettings}
       />
-      <UpdateAlert
-        visible={showUpdateAlert}
-        onClose={() => setShowUpdateAlert(false)}
-        updateInfo={updateInfo!}
-      />
+      {updateInfo && (
+        <UpdateAlert
+          visible={showUpdateAlert}
+          onClose={() => setShowUpdateAlert(false)}
+          updateInfo={updateInfo}
+        />
+      )}
       <UpdateSettings
         visible={showUpdateSettings}
         onClose={() => setShowUpdateSettings(false)}

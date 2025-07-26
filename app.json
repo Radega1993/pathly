@@ -32,14 +32,7 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": [
-      [
-        "expo-ads-admob",
-        {
-          "androidAppId": "ca-app-pub-4553067801626383~6760188699"
-        }
-      ]
-    ],
+    "plugins": [],
     "extra": {
       "eas": {
         "projectId": "your-project-id"

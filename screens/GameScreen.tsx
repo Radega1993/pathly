@@ -106,36 +106,19 @@ const GameScreen: React.FC<GameScreenProps> = ({ level, onBack, onLevelComplete,
     };
 
     const handleHint = async (hint: string) => {
+        // La lógica de pistas ahora se maneja en el componente Grid
+        // Este callback solo se ejecuta si la pista fue otorgada exitosamente
+        setCurrentHint(hint);
+
+        // Actualizar el contador de pistas usadas
+        const newHintsUsed = hintsUsed + 1;
+        setHintsUsed(newHintsUsed);
+
+        // Reproducir sonido de pista
         try {
-            // Verificar si puede usar pista gratuita
-            const canUseFree = await canUseFreeHint(level.id);
-
-            if (canUseFree) {
-                // Primera pista es gratuita
-                setCurrentHint(hint);
-                await incrementHintsUsedInLevel(level.id);
-                setHintsUsed(prev => prev + 1);
-            } else {
-                // Pistas adicionales requieren ver anuncio
-                const rewardEarned = await showRewardedAd();
-
-                if (rewardEarned) {
-                    setCurrentHint(hint);
-                    await incrementHintsUsedInLevel(level.id);
-                    setHintsUsed(prev => prev + 1);
-                } else {
-                    Alert.alert(
-                        'Pista no disponible',
-                        'Debes ver el anuncio completo para obtener esta pista.'
-                    );
-                }
-            }
+            await audioService.playForwardSound();
         } catch (error) {
-            console.error('Error obteniendo pista:', error);
-            Alert.alert(
-                'Error',
-                'No se pudo obtener la pista. Verifica tu conexión a internet.'
-            );
+            console.error('Error playing hint sound:', error);
         }
     };
 
@@ -280,6 +263,8 @@ const GameScreen: React.FC<GameScreenProps> = ({ level, onBack, onLevelComplete,
                     onPathChange={handlePathChange}
                     onReset={handleReset}
                     onHint={handleHint}
+                    levelId={level.id}
+                    hintsUsed={hintsUsed}
                 />
             </View>
 

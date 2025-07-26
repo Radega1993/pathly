@@ -10,6 +10,7 @@ import {
     PanResponder,
 } from 'react-native';
 import { audioService } from '../services/audio';
+import { getHint as getAdHint } from '../services/ads';
 
 // Tipos para las celdas del grid
 export interface Cell {
@@ -24,13 +25,15 @@ export interface GridProps {
     onPathChange?: (path: Cell[]) => void;
     onReset?: () => void;
     onHint?: (hint: string) => void;
+    levelId?: string; // ID del nivel para tracking de pistas
+    hintsUsed?: number; // Número de pistas usadas en este nivel
 }
 
 const { width: screenWidth } = Dimensions.get('window');
 const GRID_MARGIN = 80; // Aumentado de 20 a 40
 const getCellSize = (gridSize: number) => Math.min((screenWidth - GRID_MARGIN * 2) / gridSize, 60);
 
-const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHint }) => {
+const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHint, levelId, hintsUsed = 0 }) => {
     const [path, setPath] = useState<Cell[]>([]);
     const [isDrawing, setIsDrawing] = useState(false);
     const [hintCell, setHintCell] = useState<Cell | null>(null);
@@ -605,18 +608,46 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
         return lastCorrectIndex;
     };
 
-    const handleHint = () => {
-        const hint = getHint();
-        onHint?.(hint);
+    const handleHint = async () => {
+        if (!levelId) {
+            console.error('❌ levelId no proporcionado para pista');
+            return;
+        }
 
-        // Iluminar la celda sugerida si es posible
-        const suggestedCell = getSuggestedCell();
-        setHintCell(suggestedCell);
+        try {
+            // Intentar obtener pista (gratis o con anuncio)
+            const hintGranted = await getAdHint(levelId);
 
-        // Quitar la iluminación después de 5 segundos para dar más tiempo al usuario
-        setTimeout(() => {
-            setHintCell(null);
-        }, 5000);
+            if (hintGranted) {
+                // Pista otorgada, mostrar sugerencia
+                const hint = getHint();
+                onHint?.(hint);
+
+                // Iluminar la celda sugerida si es posible
+                const suggestedCell = getSuggestedCell();
+                setHintCell(suggestedCell);
+
+                // Quitar la iluminación después de 5 segundos
+                setTimeout(() => {
+                    setHintCell(null);
+                }, 5000);
+            } else {
+                // Pista no otorgada (anuncio no completado)
+                console.log('❌ Pista no otorgada - anuncio no completado');
+            }
+        } catch (error) {
+            console.error('❌ Error obteniendo pista:', error);
+        }
+    };
+
+    const getHintButtonIcon = (): string => {
+        // Si es la primera pista (gratuita), mostrar icono de pista
+        // Si es pista adicional (requiere anuncio), mostrar icono de anuncio
+        return hintsUsed === 0 ? '💡' : '📺';
+    };
+
+    const getHintButtonText = (): string => {
+        return hintsUsed === 0 ? 'Pista' : 'Ver Anuncio';
     };
 
     const getSuggestedCell = (): Cell | null => {
@@ -753,7 +784,9 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
                 </Pressable>
 
                 <Pressable style={styles.hintButton} onPress={handleHint}>
-                    <Text style={styles.hintButtonText}>💡 Pista</Text>
+                    <Text style={styles.hintButtonText}>
+                        {getHintButtonIcon()} {getHintButtonText()}
+                    </Text>
                 </Pressable>
             </View>
         </View>

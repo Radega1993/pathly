@@ -1,30 +1,29 @@
-import { initializeAuth, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
+import {
+    initializeAuth,
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
+    sendPasswordResetEmail,
+    signOut as firebaseSignOut,
+    onAuthStateChanged,
+    User as FirebaseUser
+} from 'firebase/auth';
 import { getFirestore, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as AuthSession from 'expo-auth-session';
-import * as Crypto from 'expo-crypto';
 import app, { db } from './firebase';
-import { Progress } from './storage';
+import { syncOnRegister, syncOnLogin } from './syncService';
 
-// Inicializar Auth (sin persistencia por ahora para evitar errores)
+// Inicializar Auth con persistencia
 const auth = initializeAuth(app);
-
-// Configuración de Google OAuth
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_WEB_CLIENT_ID;
-const GOOGLE_REDIRECT_URI = AuthSession.makeRedirectUri({
-    scheme: 'com.pathly.game',
-    path: 'auth'
-});
 
 // Tipos
 export interface User {
     uid: string;
-    email?: string;
-    displayName?: string;
-    photoURL?: string;
+    email: string;
+    displayName: string;
     userType: 'free' | 'monthly' | 'lifetime';
     createdAt: number;
     lastLoginAt: number;
+    isEmailVerified: boolean;
 }
 
 export interface AuthState {
@@ -33,10 +32,20 @@ export interface AuthState {
     isAuthenticated: boolean;
 }
 
+export interface LoginCredentials {
+    email: string;
+    password: string;
+}
+
+export interface RegisterCredentials extends LoginCredentials {
+    displayName: string;
+}
+
 class AuthService {
     private static instance: AuthService;
     private currentUser: User | null = null;
     private authStateListeners: ((state: AuthState) => void)[] = [];
+    private isInitialized = false;
 
     private constructor() {
         this.initializeAuthListener();
@@ -51,221 +60,237 @@ class AuthService {
 
     // Inicializar listener de auth
     private initializeAuthListener(): void {
-        auth.onAuthStateChanged(async (firebaseUser) => {
+        onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
                 // Usuario autenticado
                 const user: User = {
                     uid: firebaseUser.uid,
-                    email: firebaseUser.email || undefined,
+                    email: firebaseUser.email || '',
                     displayName: firebaseUser.displayName || 'Usuario',
-                    photoURL: firebaseUser.photoURL || undefined,
                     userType: 'free', // Por defecto free, se actualizará desde Firestore
                     createdAt: firebaseUser.metadata.creationTime ?
                         new Date(firebaseUser.metadata.creationTime).getTime() : Date.now(),
                     lastLoginAt: Date.now(),
+                    isEmailVerified: firebaseUser.emailVerified,
                 };
 
                 // Cargar datos del usuario desde Firestore
                 await this.loadUserData(user);
                 this.currentUser = user;
+
+                // Guardar sesión en AsyncStorage para persistencia
+                await this.saveSessionToStorage(user);
             } else {
                 // Usuario no autenticado
                 this.currentUser = null;
+                await this.clearSessionFromStorage();
             }
 
+            this.isInitialized = true;
             this.notifyAuthStateChange();
         });
     }
 
-    // Login con Google usando Expo AuthSession
-    async signInWithGoogle(): Promise<User> {
+    // Registro de usuario
+    async register(credentials: RegisterCredentials): Promise<User> {
         try {
-            console.log('🔄 Iniciando login con Google usando Expo AuthSession...');
-            console.log('🔧 Configuración completa:', {
-                clientId: GOOGLE_CLIENT_ID,
-                redirectUri: GOOGLE_REDIRECT_URI,
-                scheme: 'com.pathly.game',
-                clientIdLength: GOOGLE_CLIENT_ID?.length || 0,
-                redirectUriLength: GOOGLE_REDIRECT_URI?.length || 0
-            });
+            console.log('🔄 Registrando nuevo usuario...');
 
-            if (!GOOGLE_CLIENT_ID) {
-                throw new Error('GOOGLE_CLIENT_ID no está configurado');
-            }
+            // Validar credenciales
+            this.validateCredentials(credentials);
 
-            // Crear solicitud de autorización
-            const request = new AuthSession.AuthRequest({
-                clientId: GOOGLE_CLIENT_ID,
-                scopes: ['openid', 'profile', 'email'],
-                redirectUri: GOOGLE_REDIRECT_URI,
-                responseType: AuthSession.ResponseType.Code,
-                codeChallenge: await Crypto.digestStringAsync(
-                    Crypto.CryptoDigestAlgorithm.SHA256,
-                    'challenge',
-                    { encoding: Crypto.CryptoEncoding.HEX }
-                ),
-                codeChallengeMethod: AuthSession.CodeChallengeMethod.S256,
-            });
+            // Crear usuario en Firebase Auth
+            const userCredential = await createUserWithEmailAndPassword(
+                auth,
+                credentials.email,
+                credentials.password
+            );
 
-            console.log('✅ Solicitud de autorización creada');
-            console.log('🔗 URL de autorización:', await request.makeAuthUrlAsync({
-                authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
-            }));
+            const firebaseUser = userCredential.user;
 
-            // Ejecutar la solicitud
-            const result = await request.promptAsync({
-                authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
-            });
-
-            console.log('📱 Resultado de autorización:', result.type);
-            console.log('📋 Detalles del resultado:', JSON.stringify(result, null, 2));
-
-            if (result.type === 'success') {
-                console.log('✅ Autorización exitosa');
-                console.log('🔑 Código recibido:', result.params.code ? 'SÍ' : 'NO');
-
-                // Intercambiar código por tokens
-                const tokenResult = await AuthSession.exchangeCodeAsync(
-                    {
-                        clientId: GOOGLE_CLIENT_ID,
-                        code: result.params.code,
-                        redirectUri: GOOGLE_REDIRECT_URI,
-                        extraParams: {
-                            code_verifier: 'challenge',
-                        },
-                    },
-                    {
-                        tokenEndpoint: 'https://oauth2.googleapis.com/token',
-                    }
-                );
-
-                console.log('✅ Tokens obtenidos');
-                console.log('🆔 ID Token presente:', !!tokenResult.idToken);
-
-                // Crear credencial de Firebase
-                const credential = GoogleAuthProvider.credential(tokenResult.idToken);
-
-                console.log('✅ Credencial de Firebase creada');
-
-                // Autenticar con Firebase
-                const firebaseResult = await signInWithCredential(auth, credential);
-                const firebaseUser = firebaseResult.user;
-
-                console.log('✅ Usuario autenticado con Firebase:', firebaseUser.uid);
-
-                // Crear objeto de usuario
-                const user: User = {
-                    uid: firebaseUser.uid,
-                    email: firebaseUser.email || undefined,
-                    displayName: firebaseUser.displayName || 'Usuario Google',
-                    photoURL: firebaseUser.photoURL || undefined,
-                    userType: 'free',
-                    createdAt: firebaseUser.metadata.creationTime ?
-                        new Date(firebaseUser.metadata.creationTime).getTime() : Date.now(),
-                    lastLoginAt: Date.now(),
-                };
-
-                // Crear o actualizar datos del usuario en Firestore
-                await this.createOrUpdateUserData(user);
-
-                this.currentUser = user;
-                this.notifyAuthStateChange();
-
-                console.log('✅ Login con Google exitoso');
-                return user;
-            } else if (result.type === 'cancel') {
-                console.log('❌ Usuario canceló la autorización');
-                throw new Error('Autorización cancelada por el usuario');
-            } else if (result.type === 'error') {
-                console.log('❌ Error en autorización:', result.error);
-                throw new Error(`Error de autorización: ${result.error}`);
-            } else {
-                console.log('❌ Resultado inesperado:', result.type);
-                throw new Error('Resultado de autorización inesperado');
-            }
-        } catch (error) {
-            console.error('❌ Error en login con Google:', error);
-            console.error('❌ Error details:', JSON.stringify(error, null, 2));
-
-            const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-            const errorStack = error instanceof Error ? error.stack : 'No disponible';
-
-            console.error('❌ Error message:', errorMessage);
-            console.error('❌ Error stack:', errorStack);
-
-            // Lanzar el error real en lugar de usar mock
-            throw new Error(`Error en login con Google: ${errorMessage}`);
-        }
-    }
-
-    // Login con Google (mock como fallback)
-    private async signInWithGoogleMock(): Promise<User> {
-        try {
-            console.log('🔄 Iniciando login con Google (mock)...');
-
-            // Crear un usuario mock de Google
-            const mockGoogleUser: User = {
-                uid: `google_${Date.now()}`,
-                email: 'usuario@gmail.com',
-                displayName: 'Usuario Google',
-                photoURL: 'https://via.placeholder.com/150',
+            // Crear objeto de usuario
+            const user: User = {
+                uid: firebaseUser.uid,
+                email: firebaseUser.email || credentials.email,
+                displayName: credentials.displayName,
                 userType: 'free',
                 createdAt: Date.now(),
                 lastLoginAt: Date.now(),
+                isEmailVerified: firebaseUser.emailVerified,
             };
 
-            // Crear o actualizar datos del usuario en Firestore
-            await this.createOrUpdateUserData(mockGoogleUser);
+            // Crear datos del usuario en Firestore
+            await this.createUserData(user);
 
-            this.currentUser = mockGoogleUser;
+            // Sincronizar progreso local con la nube
+            await syncOnRegister(user.uid);
+
+            this.currentUser = user;
             this.notifyAuthStateChange();
 
-            console.log('✅ Login con Google exitoso (mock)');
-            return mockGoogleUser;
+            console.log('✅ Registro exitoso con sincronización');
+            return user;
+        } catch (error: any) {
+            console.error('❌ Error en registro:', error);
+
+            // Manejar errores específicos de Firebase
+            let errorMessage = 'Error en el registro';
+            if (error.code === 'auth/email-already-in-use') {
+                errorMessage = 'El email ya está registrado';
+            } else if (error.code === 'auth/weak-password') {
+                errorMessage = 'La contraseña debe tener al menos 6 caracteres';
+            } else if (error.code === 'auth/invalid-email') {
+                errorMessage = 'El email no es válido';
+            }
+
+            throw new Error(errorMessage);
+        }
+    }
+
+    // Login de usuario
+    async login(credentials: LoginCredentials): Promise<User> {
+        try {
+            console.log('🔄 Iniciando login...');
+
+            // Validar credenciales
+            this.validateCredentials(credentials);
+
+            // Autenticar con Firebase
+            const userCredential = await signInWithEmailAndPassword(
+                auth,
+                credentials.email,
+                credentials.password
+            );
+
+            const firebaseUser = userCredential.user;
+
+            // Crear objeto de usuario
+            const user: User = {
+                uid: firebaseUser.uid,
+                email: firebaseUser.email || credentials.email,
+                displayName: firebaseUser.displayName || 'Usuario',
+                userType: 'free',
+                createdAt: firebaseUser.metadata.creationTime ?
+                    new Date(firebaseUser.metadata.creationTime).getTime() : Date.now(),
+                lastLoginAt: Date.now(),
+                isEmailVerified: firebaseUser.emailVerified,
+            };
+
+            // Cargar datos del usuario desde Firestore
+            await this.loadUserData(user);
+
+            // Actualizar último login
+            await this.updateLastLogin(user.uid);
+
+            // Sincronizar progreso con la nube
+            await syncOnLogin(user.uid);
+
+            this.currentUser = user;
+            this.notifyAuthStateChange();
+
+            console.log('✅ Login exitoso con sincronización');
+            return user;
+        } catch (error: any) {
+            console.error('❌ Error en login:', error);
+
+            // Manejar errores específicos de Firebase
+            let errorMessage = 'Error en el login';
+            if (error.code === 'auth/user-not-found') {
+                errorMessage = 'Usuario no encontrado';
+            } else if (error.code === 'auth/wrong-password') {
+                errorMessage = 'Contraseña incorrecta';
+            } else if (error.code === 'auth/invalid-email') {
+                errorMessage = 'El email no es válido';
+            } else if (error.code === 'auth/too-many-requests') {
+                errorMessage = 'Demasiados intentos fallidos. Intenta más tarde';
+            }
+
+            throw new Error(errorMessage);
+        }
+    }
+
+    // Recuperar contraseña
+    async resetPassword(email: string): Promise<void> {
+        try {
+            console.log('🔄 Enviando email de recuperación...');
+
+            if (!email || !email.includes('@')) {
+                throw new Error('Email no válido');
+            }
+
+            await sendPasswordResetEmail(auth, email);
+            console.log('✅ Email de recuperación enviado');
+        } catch (error: any) {
+            console.error('❌ Error enviando email de recuperación:', error);
+
+            let errorMessage = 'Error enviando email de recuperación';
+            if (error.code === 'auth/user-not-found') {
+                errorMessage = 'No existe una cuenta con este email';
+            } else if (error.code === 'auth/invalid-email') {
+                errorMessage = 'El email no es válido';
+            }
+
+            throw new Error(errorMessage);
+        }
+    }
+
+    // Logout
+    async signOut(): Promise<void> {
+        try {
+            console.log('🔄 Cerrando sesión...');
+
+            // Cerrar sesión de Firebase
+            await firebaseSignOut(auth);
+
+            // Limpiar datos locales
+            this.currentUser = null;
+            await this.clearSessionFromStorage();
+
+            this.notifyAuthStateChange();
+            console.log('✅ Logout exitoso');
         } catch (error) {
-            console.error('❌ Error en login con Google (mock):', error);
+            console.error('❌ Error en logout:', error);
             throw error;
         }
     }
 
-    // Crear o actualizar datos del usuario en Firestore
-    private async createOrUpdateUserData(user: User): Promise<void> {
+    // Validar credenciales
+    private validateCredentials(credentials: LoginCredentials | RegisterCredentials): void {
+        if (!credentials.email || !credentials.email.includes('@')) {
+            throw new Error('Email no válido');
+        }
+
+        if (!credentials.password || credentials.password.length < 6) {
+            throw new Error('La contraseña debe tener al menos 6 caracteres');
+        }
+
+        if ('displayName' in credentials && (!credentials.displayName || credentials.displayName.trim().length < 2)) {
+            throw new Error('El nombre debe tener al menos 2 caracteres');
+        }
+    }
+
+    // Crear datos del usuario en Firestore
+    private async createUserData(user: User): Promise<void> {
         try {
             const userRef = doc(db, 'users', user.uid);
-            const userDoc = await getDoc(userRef);
+            await setDoc(userRef, {
+                uid: user.uid,
+                email: user.email,
+                displayName: user.displayName,
+                userType: user.userType,
+                createdAt: user.createdAt,
+                lastLoginAt: user.lastLoginAt,
+                isEmailVerified: user.isEmailVerified,
+                progress: {
+                    completedLevels: [],
+                    lastPlayedLevel: null,
+                    totalLevelsCompleted: 0,
+                }
+            });
 
-            if (userDoc.exists()) {
-                // Usuario existe, actualizar último login
-                await updateDoc(userRef, {
-                    lastLoginAt: user.lastLoginAt,
-                    displayName: user.displayName,
-                    photoURL: user.photoURL,
-                });
-
-                // Cargar datos existentes
-                const userData = userDoc.data();
-                user.userType = userData.userType || 'free';
-            } else {
-                // Usuario nuevo, crear documento
-                await setDoc(userRef, {
-                    uid: user.uid,
-                    email: user.email,
-                    displayName: user.displayName,
-                    photoURL: user.photoURL,
-                    userType: user.userType,
-                    createdAt: user.createdAt,
-                    lastLoginAt: user.lastLoginAt,
-                    progress: {
-                        completedLevels: [],
-                        lastPlayedLevel: null,
-                        totalLevelsCompleted: 0,
-                    }
-                });
-            }
-
-            console.log('✅ Datos de usuario guardados en Firestore');
+            console.log('✅ Datos de usuario creados en Firestore');
         } catch (error) {
-            console.error('❌ Error guardando datos de usuario:', error);
+            console.error('❌ Error creando datos de usuario:', error);
         }
     }
 
@@ -279,11 +304,56 @@ class AuthService {
                 const userData = userDoc.data();
                 user.userType = userData.userType || 'free';
                 user.displayName = userData.displayName || user.displayName;
-                user.photoURL = userData.photoURL || user.photoURL;
+                user.createdAt = userData.createdAt || user.createdAt;
             }
         } catch (error) {
             console.error('❌ Error cargando datos de usuario:', error);
         }
+    }
+
+    // Actualizar último login
+    private async updateLastLogin(uid: string): Promise<void> {
+        try {
+            const userRef = doc(db, 'users', uid);
+            await updateDoc(userRef, {
+                lastLoginAt: Date.now(),
+            });
+        } catch (error) {
+            console.error('❌ Error actualizando último login:', error);
+        }
+    }
+
+    // Guardar sesión en AsyncStorage
+    private async saveSessionToStorage(user: User): Promise<void> {
+        try {
+            await AsyncStorage.setItem('user_session', JSON.stringify(user));
+        } catch (error) {
+            console.error('❌ Error guardando sesión:', error);
+        }
+    }
+
+    // Limpiar sesión de AsyncStorage
+    private async clearSessionFromStorage(): Promise<void> {
+        try {
+            await AsyncStorage.removeItem('user_session');
+        } catch (error) {
+            console.error('❌ Error limpiando sesión:', error);
+        }
+    }
+
+    // Cargar sesión desde AsyncStorage (para persistencia)
+    async loadSessionFromStorage(): Promise<User | null> {
+        try {
+            const sessionData = await AsyncStorage.getItem('user_session');
+            if (sessionData) {
+                const user = JSON.parse(sessionData) as User;
+                console.log('✅ Sesión cargada desde storage');
+                return user;
+            }
+        } catch (error) {
+            console.error('❌ Error cargando sesión:', error);
+        }
+        return null;
     }
 
     // Obtener usuario actual
@@ -301,19 +371,9 @@ class AuthService {
         return this.currentUser?.userType || 'free';
     }
 
-    // Logout
-    async signOut(): Promise<void> {
-        try {
-            // Cerrar sesión de Firebase
-            await auth.signOut();
-
-            this.currentUser = null;
-            this.notifyAuthStateChange();
-            console.log('✅ Logout exitoso');
-        } catch (error) {
-            console.error('❌ Error en logout:', error);
-            throw error;
-        }
+    // Verificar si la autenticación está inicializada
+    isAuthInitialized(): boolean {
+        return this.isInitialized;
     }
 
     // Suscribirse a cambios de auth state
@@ -342,7 +402,7 @@ class AuthService {
     private getAuthState(): AuthState {
         return {
             user: this.currentUser,
-            isLoading: false,
+            isLoading: !this.isInitialized,
             isAuthenticated: this.currentUser !== null,
         };
     }
@@ -369,11 +429,15 @@ class AuthService {
 export const authService = AuthService.getInstance();
 
 // Funciones de conveniencia
-export const signInWithGoogle = (): Promise<User> => authService.signInWithGoogle();
+export const register = (credentials: RegisterCredentials): Promise<User> => authService.register(credentials);
+export const login = (credentials: LoginCredentials): Promise<User> => authService.login(credentials);
+export const resetPassword = (email: string): Promise<void> => authService.resetPassword(email);
 export const signOut = (): Promise<void> => authService.signOut();
 export const getCurrentUser = (): User | null => authService.getCurrentUser();
 export const isPremium = (): boolean => authService.isPremium();
 export const getUserType = (): 'free' | 'monthly' | 'lifetime' => authService.getUserType();
 export const subscribeToAuthState = (listener: (state: AuthState) => void) => authService.subscribeToAuthState(listener);
+export const loadSessionFromStorage = (): Promise<User | null> => authService.loadSessionFromStorage();
+export const isAuthInitialized = (): boolean => authService.isAuthInitialized();
 
 export default authService; 
