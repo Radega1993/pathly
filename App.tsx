@@ -7,11 +7,14 @@ import TutorialScreen from './screens/TutorialScreen';
 import Logo from './components/Logo';
 import AudioSettings from './components/AudioSettings';
 import AuthModal from './components/AuthModal';
+import UpdateAlert from './components/UpdateAlert';
+import UpdateSettings from './components/UpdateSettings';
 import { Level } from './types/level';
 import { adsManager } from './services/ads';
 import { audioService } from './services/audio';
 import { authService, User, AuthState } from './services/auth';
 import { cleanupExpiredCache } from './services/levelService';
+import { updateService, UpdateInfo } from './services/updateService';
 
 type AppScreen = 'menu' | 'levelSelect' | 'game' | 'tutorial';
 
@@ -25,6 +28,9 @@ export default function App() {
   });
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showAudioSettings, setShowAudioSettings] = useState(false);
+  const [showUpdateAlert, setShowUpdateAlert] = useState(false);
+  const [showUpdateSettings, setShowUpdateSettings] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
 
   // Inicializar sistemas al cargar la app
   useEffect(() => {
@@ -63,6 +69,13 @@ export default function App() {
         // Limpiar cache expirado de niveles
         await cleanupExpiredCache();
         console.log('✅ Cache cleaned');
+
+        // Inicializar servicio de actualizaciones
+        await updateService.initialize();
+        console.log('✅ Update service initialized');
+
+        // Verificar actualizaciones al inicio
+        await checkForUpdatesOnStart();
 
         // Reproducir música de menú al inicio (solo si el audio se inicializó correctamente)
         if (audioInitialized) {
@@ -179,6 +192,26 @@ export default function App() {
     setCurrentScreen('tutorial');
   };
 
+  const checkForUpdatesOnStart = async () => {
+    try {
+      const info = await updateService.checkForUpdates();
+      setUpdateInfo(info);
+
+      // Mostrar alerta si hay actualización disponible y el usuario no la ha descartado
+      if (info.isUpdateAvailable &&
+        !updateService.isUpdateDismissed(info.latestVersion || '') &&
+        updateService.getPreferences().showUpdateAlerts) {
+        setShowUpdateAlert(true);
+      }
+    } catch (error) {
+      console.error('❌ Error checking for updates on start:', error);
+    }
+  };
+
+  const handleShowUpdateSettings = () => {
+    setShowUpdateSettings(true);
+  };
+
   const renderScreen = () => {
     switch (currentScreen) {
       case 'menu':
@@ -191,6 +224,13 @@ export default function App() {
                 activeOpacity={0.8}
               >
                 <Ionicons name="settings-outline" size={24} color="#3B82F6" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.updateButton}
+                onPress={handleShowUpdateSettings}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="cloud-download-outline" size={24} color="#3B82F6" />
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.authButton}
@@ -321,6 +361,15 @@ export default function App() {
         visible={showAudioSettings}
         onClose={handleCloseAudioSettings}
       />
+      <UpdateAlert
+        visible={showUpdateAlert}
+        onClose={() => setShowUpdateAlert(false)}
+        updateInfo={updateInfo!}
+      />
+      <UpdateSettings
+        visible={showUpdateSettings}
+        onClose={() => setShowUpdateSettings(false)}
+      />
 
     </>
   );
@@ -341,6 +390,26 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 60, // Aumentado de 50 a 60
     left: 20, // Reducido de 80 a 20 para usar el padding del header
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    zIndex: 1000,
+  },
+  updateButton: {
+    position: 'absolute',
+    top: 60, // Aumentado de 50 a 60
+    right: 80, // Posicionado entre el botón de audio y el de auth
     width: 44,
     height: 44,
     borderRadius: 22,
