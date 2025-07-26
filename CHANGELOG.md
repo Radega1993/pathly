@@ -90,13 +90,29 @@
 
 ---
 
-## [1.1.0] - 2024-01-XX
+## [1.1.0] - 2024-12-24
+
+### ✨ New Features
+- **Drag and Drop System**: Implemented intuitive drag and drop functionality for connecting puzzle cells
+- **Enhanced Touch Interaction**: Added smooth drag gestures for better mobile gameplay experience
+- **Visual Feedback**: Real-time visual feedback during drag operations with highlighted paths
+- **Improved Gameplay**: More intuitive and responsive puzzle solving mechanics
+
+### 🎮 Gameplay Enhancements
+- **Touch Gestures**: Support for drag gestures to connect numbers in sequence
+- **Path Visualization**: Real-time path preview during drag operations
+- **Cell Highlighting**: Visual feedback for valid and invalid connections
+- **Smooth Animations**: Fluid animations for drag and drop interactions
 
 ### 🔧 Fixed
-- **Conexión de caminos**: Arreglado el sistema de renderizado de líneas para que las celdas del camino se conecten correctamente
-- **Líneas más visibles**: Aumentado el grosor de las líneas de 4px a 6px para mejor visibilidad
-- **Posicionamiento mejorado**: Ajustado el posicionamiento de las líneas para que se conecten desde los bordes de las celdas
-- **Código simplificado**: Eliminadas funciones complejas y redundantes de renderizado de líneas
+- **Touch Responsiveness**: Improved touch input handling for better device compatibility
+- **Path Rendering**: Enhanced path visualization with better line connections
+- **Performance**: Optimized drag and drop operations for smooth gameplay
+
+### 🎨 UI/UX Improvements
+- **Interactive Elements**: Added visual states for draggable cells
+- **Feedback System**: Clear visual feedback for user actions
+- **Accessibility**: Improved touch targets and interaction areas
 
 ### 🎨 UI/UX Improvements
 - **Líneas redondeadas**: Añadido `borderRadius: 2` a las líneas para un aspecto más moderno
