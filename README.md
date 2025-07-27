@@ -84,6 +84,27 @@ npm run web
 ### Proceso Manual
 Para un control más detallado, sigue la [Guía Completa de Release](RELEASE_GUIDE.md).
 
+### 🔐 Configuración de Keystore
+
+Antes de crear releases, necesitas configurar tu keystore:
+
+1. **Copiar el archivo de ejemplo**:
+   ```bash
+   cp android/app/keystore.properties.example android/app/keystore.properties
+   ```
+
+2. **Actualizar `android/app/keystore.properties`** con tus datos reales:
+   ```properties
+   storePassword=tu_password_keystore
+   keyPassword=tu_password_key
+   keyAlias=tu_alias_key
+   storeFile=tu_archivo_keystore.jks
+   ```
+
+3. **Colocar tu archivo keystore** en `android/app/`
+
+**⚠️ Nota de Seguridad**: ¡Nunca subas `keystore.properties` o archivos keystore al control de versiones!
+
 ### Archivos de Release
 Los releases se guardan en la carpeta `releases/` con la siguiente estructura:
 ```

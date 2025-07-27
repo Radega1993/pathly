@@ -90,6 +90,20 @@
 
 ---
 
+## [1.1.1] - 2024-12-24
+
+### 🔧 Bug Fixes
+- **App Signing**: Fixed app signing issues with Google Play Store
+- **Keystore Management**: Implemented proper keystore configuration for release builds
+- **Build Process**: Improved release build process with correct signing setup
+
+### 📱 Technical Improvements
+- **Google Play App Signing**: Configured proper upload keystore for Google Play App Signing
+- **Build Optimization**: Enhanced build process for better compatibility
+- **Release Management**: Streamlined release process with automated scripts
+
+---
+
 ## [1.1.0] - 2024-12-24
 
 ### ✨ New Features

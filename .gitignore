@@ -18,6 +18,14 @@ expo-env.d.ts
 *.key
 *.mobileprovision
 
+# Keystore files (security)
+android/app/keystore.properties
+android/app/*.keystore
+android/app/pathly-upload-key.jks
+android/app/upload-keystore.jks
+android/app/pathly-release-key.keystore
+deployment_cert.der
+
 # Metro
 .metro-health-check*
 
