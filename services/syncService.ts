@@ -47,6 +47,11 @@ class SyncService {
             const localProgress = await getProgress();
             const lastLevelPlayed = await getLastLevelPlayed();
 
+            console.log('📊 Progreso local encontrado:');
+            console.log('- Niveles completados:', localProgress.completedLevels.size);
+            console.log('- Último nivel jugado:', lastLevelPlayed);
+            console.log('- Última actividad:', new Date(localProgress.lastPlayedAt).toLocaleString());
+
             // Crear progreso en la nube con datos locales
             const cloudProgress: CloudProgress = {
                 completedLevels: Array.from(localProgress.completedLevels),
@@ -63,7 +68,10 @@ class SyncService {
                 lastLoginAt: Date.now(),
             });
 
-            console.log('✅ Progreso sincronizado al registrar usuario');
+            console.log('✅ Progreso local sincronizado con nueva cuenta:');
+            console.log('- Niveles transferidos:', cloudProgress.completedLevels.length);
+            console.log('- Nivel más alto:', this.getHighestLevelFromProgress(cloudProgress));
+            console.log('- Total completados:', cloudProgress.totalLevelsCompleted);
         } catch (error) {
             console.error('❌ Error sincronizando al registrar:', error);
             throw error;
@@ -71,8 +79,9 @@ class SyncService {
     }
 
     /**
- * Sincroniza el progreso al hacer login
- */
+     * Sincroniza el progreso al hacer login
+     * Compara el nivel más alto entre local y online, y usa el más alto
+     */
     async syncOnLogin(userId: string): Promise<void> {
         try {
             console.log('🔄 Sincronizando progreso al hacer login...');
@@ -95,29 +104,34 @@ class SyncService {
             console.log('- Local: niveles completados:', localProgress.completedLevels.size, 'último:', localLastLevel);
             console.log('- Nube: niveles completados:', cloudProgress.totalLevelsCompleted, 'último:', cloudProgress.lastPlayedLevel);
 
-            // Si la nube no tiene progreso pero el local sí, forzar sincronización local
-            if (cloudProgress.totalLevelsCompleted === 0 && localProgress.completedLevels.size > 0) {
-                console.log('📤 Nube sin progreso pero local con progreso, forzando sincronización local');
+            // Obtener el nivel más alto de cada fuente
+            const localHighestLevel = this.getHighestLevelFromProgress(localProgress);
+            const cloudHighestLevel = this.getHighestLevelFromProgress(cloudProgress);
+
+            console.log('🏆 Nivel más alto:');
+            console.log('- Local:', localHighestLevel);
+            console.log('- Nube:', cloudHighestLevel);
+
+            // Comparar y usar el nivel más alto
+            if (localHighestLevel > cloudHighestLevel) {
+                console.log('📤 Local tiene nivel más alto, actualizando nube');
                 await this.updateCloudFromLocal(userId, localProgress, localLastLevel);
-                return;
-            }
-
-            // Comparar fechas para decidir qué datos usar
-            const cloudIsNewer = cloudProgress.lastPlayedAt > localProgress.lastPlayedAt;
-            const localIsNewer = localProgress.lastPlayedAt > cloudProgress.lastPlayedAt;
-
-            if (cloudIsNewer) {
-                // La nube tiene datos más recientes, actualizar local
-                console.log('📥 Actualizando progreso local con datos de la nube');
+            } else if (cloudHighestLevel > localHighestLevel) {
+                console.log('📥 Nube tiene nivel más alto, actualizando local');
                 await this.updateLocalFromCloud(cloudProgress);
-            } else if (localIsNewer) {
-                // Local tiene datos más recientes, actualizar nube
-                console.log('📤 Actualizando nube con datos locales');
-                await this.updateCloudFromLocal(userId, localProgress, localLastLevel);
             } else {
-                // Ambos están sincronizados, solo actualizar timestamp
-                console.log('✅ Progreso ya sincronizado');
-                await this.updateLastSync(userId);
+                // Ambos tienen el mismo nivel más alto, mantener sincronizados
+                console.log('✅ Ambos tienen el mismo nivel más alto, manteniendo sincronización');
+                if (cloudProgress.lastPlayedAt > localProgress.lastPlayedAt) {
+                    // La nube tiene datos más recientes, actualizar local
+                    await this.updateLocalFromCloud(cloudProgress);
+                } else if (localProgress.lastPlayedAt > cloudProgress.lastPlayedAt) {
+                    // Local tiene datos más recientes, actualizar nube
+                    await this.updateCloudFromLocal(userId, localProgress, localLastLevel);
+                } else {
+                    // Ambos están sincronizados, solo actualizar timestamp
+                    await this.updateLastSync(userId);
+                }
             }
 
             console.log('✅ Progreso sincronizado al hacer login');
@@ -258,6 +272,46 @@ class SyncService {
             lastSyncAt: Date.now(),
             totalLevelsCompleted: 0,
         };
+    }
+
+    /**
+ * Obtiene el nivel más alto de un progreso (local o nube)
+ */
+    private getHighestLevelFromProgress(progress: Progress | CloudProgress): number {
+        if ('completedLevels' in progress && progress.completedLevels instanceof Set) {
+            // Progreso local (Set)
+            if (progress.completedLevels.size === 0) return 0;
+
+            let highestLevel = 0;
+            for (const levelId of progress.completedLevels) {
+                const levelNumber = this.extractLevelNumber(levelId);
+                if (levelNumber > highestLevel) {
+                    highestLevel = levelNumber;
+                }
+            }
+            return highestLevel;
+        } else {
+            // Progreso de nube (array)
+            const cloudProgress = progress as CloudProgress;
+            if (!cloudProgress.completedLevels || cloudProgress.completedLevels.length === 0) return 0;
+
+            let highestLevel = 0;
+            for (const levelId of cloudProgress.completedLevels) {
+                const levelNumber = this.extractLevelNumber(levelId);
+                if (levelNumber > highestLevel) {
+                    highestLevel = levelNumber;
+                }
+            }
+            return highestLevel;
+        }
+    }
+
+    /**
+     * Extrae el número de nivel de un ID de nivel (ej: "level_23" -> 23)
+     */
+    private extractLevelNumber(levelId: string): number {
+        const match = levelId.match(/level_(\d+)/);
+        return match ? parseInt(match[1], 10) : 0;
     }
 
     /**

@@ -90,6 +90,18 @@
 
 ---
 
+## [1.1.2] - 2024-12-24
+
+### 🔧 Bug Fixes
+- **Authentication**: Fixed authentication system issues
+- **User Session**: Improved session management and persistence
+- **Login Flow**: Enhanced login and registration process stability
+
+### 📱 Technical Improvements
+- **Auth Error Handling**: Better error handling for authentication failures
+- **Session Persistence**: Improved session persistence across app restarts
+- **Security**: Enhanced authentication security measures
+
 ## [1.1.1] - 2024-12-24
 
 ### 🔧 Bug Fixes

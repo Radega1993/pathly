@@ -246,8 +246,11 @@ class AuthService {
             this.currentUser = null;
             await this.clearSessionFromStorage();
 
+            // Resetear progreso local para evitar que se sobrescriba el progreso de otra cuenta
+            await this.resetLocalProgress();
+
             this.notifyAuthStateChange();
-            console.log('✅ Logout exitoso');
+            console.log('✅ Logout exitoso - Progreso local reseteado');
         } catch (error) {
             console.error('❌ Error en logout:', error);
             throw error;
@@ -338,6 +341,23 @@ class AuthService {
             await AsyncStorage.removeItem('user_session');
         } catch (error) {
             console.error('❌ Error limpiando sesión:', error);
+        }
+    }
+
+    // Resetear progreso local al hacer logout
+    private async resetLocalProgress(): Promise<void> {
+        try {
+            console.log('🔄 Reseteando progreso local...');
+
+            // Importar funciones de storage dinámicamente para evitar dependencias circulares
+            const { clearProgress } = await import('./storage');
+
+            // Limpiar progreso local (incluye último nivel jugado)
+            await clearProgress();
+
+            console.log('✅ Progreso local reseteado');
+        } catch (error) {
+            console.error('❌ Error reseteando progreso local:', error);
         }
     }
 
