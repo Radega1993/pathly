@@ -2,6 +2,10 @@ package com.pathly.game
 
 import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -17,6 +21,39 @@ class MainActivity : ReactActivity() {
     // This is required for expo-splash-screen.
     setTheme(R.style.AppTheme);
     super.onCreate(null)
+    
+    // Configurar edge-to-edge para Android 15+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+      setupEdgeToEdge()
+    }
+  }
+
+  /**
+   * Configura el edge-to-edge para Android 15+ sin usar APIs deprecadas
+   */
+  private fun setupEdgeToEdge() {
+    try {
+      // Usar WindowCompat para edge-to-edge moderno
+      WindowCompat.setDecorFitsSystemWindows(window, false)
+      
+      // Configurar el controlador de insets
+      val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
+      windowInsetsController.isAppearanceLightStatusBars = true
+      windowInsetsController.isAppearanceLightNavigationBars = true
+      
+      // Configurar el comportamiento de los insets
+      window.decorView.setOnApplyWindowInsetsListener { view, windowInsets ->
+        val insets = WindowInsetsCompat.toWindowInsetsCompat(windowInsets).getInsets(WindowInsetsCompat.Type.systemBars())
+        view.setPadding(insets.left, insets.top, insets.right, insets.bottom)
+        windowInsets
+      }
+    } catch (e: Exception) {
+      // Fallback para versiones anteriores
+      window.setFlags(
+        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+      )
+    }
   }
 
   /**

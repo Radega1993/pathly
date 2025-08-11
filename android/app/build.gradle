@@ -92,8 +92,8 @@ android {
         applicationId 'com.pathly.game'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 20
-        versionName "1.1.2"
+        versionCode 21
+        versionName "1.1.3"
     }
     signingConfigs {
         debug {

@@ -4,8 +4,8 @@ export default {
     expo: {
         name: "Pathly Game",
         slug: "pathly-game",
-        version: "1.0.2",
-        orientation: "portrait",
+        version: "1.1.3",
+        orientation: "default",
         icon: "./assets/icon.png",
         userInterfaceStyle: "light",
         newArchEnabled: true,
@@ -20,7 +20,7 @@ export default {
         },
         android: {
             package: "com.pathly.game",
-            versionCode: 16,
+            versionCode: 21,
             adaptiveIcon: {
                 foregroundImage: "./assets/adaptive-icon.png",
                 backgroundColor: "#3B82F6"

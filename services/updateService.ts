@@ -35,6 +35,8 @@ const UPDATE_CONFIG = {
         showUpdateAlerts: true,
         checkFrequency: 'weekly' as const,
     },
+    // Configuración de versiones para producción
+    PRODUCTION_MODE: true, // Cambiar a false para testing
 };
 
 class UpdateService {
@@ -60,12 +62,12 @@ class UpdateService {
 
         if (Platform.OS === 'android') {
             return {
-                version: manifest?.version || '1.1.0',
-                versionCode: manifest?.android?.versionCode || 18,
+                version: manifest?.version || '1.1.3',
+                versionCode: manifest?.android?.versionCode || 21,
             };
         } else {
             return {
-                version: manifest?.version || '1.1.0',
+                version: manifest?.version || '1.1.3',
                 versionCode: manifest?.ios?.buildNumber ? parseInt(manifest.ios.buildNumber) : 1,
             };
         }
@@ -73,8 +75,7 @@ class UpdateService {
 
     /**
      * Verificar si hay una actualización disponible
-     * Nota: En un entorno real, esto haría una llamada a una API
-     * Por ahora, simulamos la verificación
+     * En producción, esto debería hacer una llamada a tu API
      */
     async checkForUpdates(): Promise<UpdateInfo> {
         try {
@@ -92,25 +93,40 @@ class UpdateService {
                 };
             }
 
+            // En modo producción, no simulamos actualizaciones
             // En un entorno real, aquí harías una llamada a tu API
-            // Por ahora, simulamos que siempre hay una versión más nueva
-            // (esto se puede cambiar para producción)
-            const mockLatestVersion = this.getMockLatestVersion(current.version);
+            if (UPDATE_CONFIG.PRODUCTION_MODE) {
+                // Por ahora, no hay actualización disponible
+                // Esto se puede cambiar cuando tengas una API real
+                const updateInfo: UpdateInfo = {
+                    currentVersion: current.version,
+                    currentVersionCode: current.versionCode,
+                    updateUrl: UPDATE_CONFIG.GOOGLE_PLAY_URL,
+                    isUpdateAvailable: false,
+                    lastChecked: Date.now(),
+                };
 
-            const updateInfo: UpdateInfo = {
-                currentVersion: current.version,
-                currentVersionCode: current.versionCode,
-                latestVersion: mockLatestVersion.version,
-                latestVersionCode: mockLatestVersion.versionCode,
-                updateUrl: UPDATE_CONFIG.GOOGLE_PLAY_URL,
-                isUpdateAvailable: this.isVersionNewer(mockLatestVersion, current),
-                lastChecked: Date.now(),
-            };
+                // Guardar la última verificación
+                await this.setLastCheckTime(updateInfo.lastChecked);
+                return updateInfo;
+            } else {
+                // Modo testing: simular actualización (solo para desarrollo)
+                const mockLatestVersion = this.getMockLatestVersion(current.version);
 
-            // Guardar la última verificación
-            await this.setLastCheckTime(updateInfo.lastChecked);
+                const updateInfo: UpdateInfo = {
+                    currentVersion: current.version,
+                    currentVersionCode: current.versionCode,
+                    latestVersion: mockLatestVersion.version,
+                    latestVersionCode: mockLatestVersion.versionCode,
+                    updateUrl: UPDATE_CONFIG.GOOGLE_PLAY_URL,
+                    isUpdateAvailable: this.isVersionNewer(mockLatestVersion, current),
+                    lastChecked: Date.now(),
+                };
 
-            return updateInfo;
+                // Guardar la última verificación
+                await this.setLastCheckTime(updateInfo.lastChecked);
+                return updateInfo;
+            }
         } catch (error) {
             console.error('❌ Error checking for updates:', error);
             return {
@@ -124,12 +140,11 @@ class UpdateService {
     }
 
     /**
-     * Simular la versión más reciente disponible
+     * Simular la versión más reciente disponible (solo para testing)
      * En producción, esto vendría de tu API
      */
     private getMockLatestVersion(currentVersion: string): { version: string; versionCode: number } {
-        // Simular que hay una versión más nueva
-        // En producción, esto se reemplazaría con datos reales de tu API
+        // Solo para testing - simular que hay una versión más nueva
         const versionParts = currentVersion.split('.');
         const major = parseInt(versionParts[0]);
         const minor = parseInt(versionParts[1]);
@@ -268,6 +283,13 @@ class UpdateService {
      */
     getUpdateUrl(): string {
         return UPDATE_CONFIG.GOOGLE_PLAY_URL;
+    }
+
+    /**
+     * Método para testing: habilitar/deshabilitar modo testing
+     */
+    setTestingMode(enabled: boolean): void {
+        (UPDATE_CONFIG as any).PRODUCTION_MODE = !enabled;
     }
 }
 

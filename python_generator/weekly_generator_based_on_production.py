@@ -60,24 +60,24 @@ class WeeklyPuzzleGenerator:
         # Configuraciones de dificultad optimizadas para rendimiento
         self.difficulty_configs = {
             Difficulty.FACIL: {
-                'size_range': (4, 5),
-                'numbers_range': (3, 6),
-                'weight': 0.40
-            },
-            Difficulty.NORMAL: {
-                'size_range': (4, 5),
-                'numbers_range': (4, 8),
+                'size_range': (4, 6),
+                'numbers_range': (3, 8),
                 'weight': 0.35
             },
+            Difficulty.NORMAL: {
+                'size_range': (4, 6),
+                'numbers_range': (4, 12),
+                'weight': 0.30
+            },
             Difficulty.DIFICIL: {
-                'size_range': (5, 6),
-                'numbers_range': (5, 10),
-                'weight': 0.20
+                'size_range': (5, 7),
+                'numbers_range': (5, 15),
+                'weight': 0.25
             },
             Difficulty.EXTREMO: {
-                'size_range': (7, 7),
-                'numbers_range': (6, 20),
-                'weight': 0.05
+                'size_range': (6, 8),
+                'numbers_range': (6, 25),
+                'weight': 0.10
             }
         }
         
@@ -173,11 +173,11 @@ class WeeklyPuzzleGenerator:
             return False
         
         # Configurar timeout basado en el tamaño
-        timeout = 5 if size <= 4 else (10 if size <= 5 else 15)
+        timeout = 5 if size <= 4 else (10 if size <= 5 else (15 if size <= 6 else (20 if size <= 7 else 25)))
         start_time = time.time()
         
         # Intentar múltiples veces con diferentes estrategias
-        max_attempts = 10 if size <= 4 else (20 if size <= 5 else 30)
+        max_attempts = 10 if size <= 4 else (20 if size <= 5 else (30 if size <= 6 else (40 if size <= 7 else 50)))
         
         for attempt in range(max_attempts):
             visited = {start}
@@ -190,7 +190,7 @@ class WeeklyPuzzleGenerator:
             random.shuffle(self.directions)
             
             # Para matrices grandes, también probar diferentes puntos de inicio/fin
-            if size > 5 and attempt > 5:
+            if size > 6 and attempt > 5:
                 # Generar nuevos puntos de inicio/fin
                 all_points = [(i, j) for i in range(size) for j in range(size)]
                 start = random.choice(all_points)
@@ -416,7 +416,7 @@ class WeeklyPuzzleGenerator:
         """Genera un puzzle completo (evitando duplicados)"""
         # Validar parámetros
         if size < 4 or size > 8:
-            print(f"❌ Tamaño de matriz inválido: {size} (debe ser entre 4 y 6)")
+            print(f"❌ Tamaño de matriz inválido: {size} (debe ser entre 4 y 8)")
             return None
         
         if num_numbers < 3 or num_numbers > size * size:
