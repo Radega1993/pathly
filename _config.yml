@@ -1,0 +1,57 @@
+# GitHub Pages Configuration
+title: Pathly Game
+description: Un juego de puzzle adictivo donde conectas números en orden para completar cada nivel
+url: "https://radega1993.github.io"
+baseurl: "/pathly"
+
+# Build settings
+markdown: kramdown
+highlighter: rouge
+permalink: pretty
+
+# Plugins
+plugins:
+  - jekyll-feed
+  - jekyll-seo-tag
+
+# Collections
+collections:
+  docs:
+    output: true
+    permalink: /:collection/:name/
+
+# Defaults
+defaults:
+  - scope:
+      path: ""
+      type: "docs"
+    values:
+      layout: "default"
+
+# Exclude from processing
+exclude:
+  - node_modules
+  - android
+  - ios
+  - .expo
+  - python_generator
+  - releases
+  - scripts
+  - components
+  - screens
+  - services
+  - types
+  - utils
+  - assets
+  - .git
+  - .cursor
+  - package.json
+  - package-lock.json
+  - app.config.js
+  - app.json
+  - babel.config.js
+  - tsconfig.json
+  - eas.json
+  - firestore.rules
+  - env.example
+  - .gitignore 
