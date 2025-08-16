@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+# AdMob app-ads.txt verification
+Allow: /app-ads.txt 
