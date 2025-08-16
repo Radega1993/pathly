@@ -2,4 +2,16 @@ User-agent: *
 Allow: /
 
 # AdMob app-ads.txt verification
-Allow: /app-ads.txt 
+Allow: /app-ads.txt
+
+# Google AdMob specific crawler
+User-agent: Google-adstxt
+Disallow:
+
+# Mediapartners-Google crawler
+User-agent: Mediapartners-Google
+Disallow:
+
+# Googlebot crawler
+User-agent: Googlebot
+Disallow: 
