@@ -17,6 +17,9 @@ import {
     isLevelCompleted,
     getCompletedLevelsCount,
 } from '../services';
+import LivesDisplay from '../components/LivesDisplay';
+import { useLives } from '../utils/useLives';
+import GameOverModal from '../components/GameOverModal';
 import {
     incrementLevelsCompleted,
     shouldShowInterstitialAd,
@@ -42,6 +45,15 @@ const GameScreen: React.FC<GameScreenProps> = ({ level, onBack, onLevelComplete,
     const [isLevelAlreadyCompleted, setIsLevelAlreadyCompleted] = useState(false);
     const [totalCompletedLevels, setTotalCompletedLevels] = useState(0);
     const [hintsUsed, setHintsUsed] = useState(0);
+
+    // Hook para manejar vidas
+    const { consumeLifeAndUpdate, canPlay, updateLivesDisplay, livesState, timeRemaining } = useLives();
+
+    // Estado para el modal de Game Over
+    const [showGameOverModal, setShowGameOverModal] = useState(false);
+
+    // Estado para forzar actualización del display
+    const [forceUpdate, setForceUpdate] = useState(0);
 
     // Usar el grid del nivel de Firestore
     const [gridData] = useState<Cell[][]>(() => level.grid);
@@ -97,12 +109,77 @@ const GameScreen: React.FC<GameScreenProps> = ({ level, onBack, onLevelComplete,
     };
 
     const handleReset = async () => {
+        console.log('🔄 Botón de reset presionado');
+
+        // Verificar si tiene vidas antes de intentar consumir
+        if (!canPlay) {
+            console.log('💔 No hay vidas disponibles para reset');
+            setShowGameOverModal(true);
+            return;
+        }
+
+        // Consumir una vida al reiniciar
+        const lifeConsumed = await consumeLifeAndUpdate();
+        if (!lifeConsumed) {
+            console.log('💔 No se pudo consumir vida para reset');
+            setShowGameOverModal(true);
+            return;
+        }
+
+        console.log('✅ Vida consumida por reset, actualizando display');
+
+        // Actualizar display de vidas después del reset
+        await updateLivesDisplay();
+
         setResetCount(prev => prev + 1);
         setCurrentHint('');
 
         // Resetear contador de pistas para este nivel
         await resetHintsForLevel(level.id);
         setHintsUsed(0);
+    };
+
+    const handleLifeConsumed = async () => {
+        console.log('🔄 Retroceso detectado, verificando vidas...');
+
+        // Verificar si tiene vidas antes de intentar consumir
+        if (!canPlay) {
+            console.log('💔 No hay vidas disponibles para retroceder');
+            setShowGameOverModal(true);
+            return;
+        }
+
+        // Consumir una vida al retroceder
+        const lifeConsumed = await consumeLifeAndUpdate();
+        if (!lifeConsumed) {
+            console.log('💔 No se pudo consumir vida para retroceder');
+            setShowGameOverModal(true);
+            return;
+        }
+
+        console.log('✅ Vida consumida por retroceso, actualizando display');
+
+        // Actualizar display de vidas después del retroceso
+        await updateLivesDisplay();
+    };
+
+    const handleGameOverLivesRestored = () => {
+        // Las vidas se han restaurado, continuar jugando
+        console.log('❤️ Vidas restauradas, continuando juego');
+        setShowGameOverModal(false);
+    };
+
+    const handleGameOverExitLevel = () => {
+        // Salir del nivel y volver a la selección
+        console.log('🚪 Saliendo del nivel por falta de vidas');
+        onBack();
+    };
+
+    const handleLivesUpdated = () => {
+        // Actualizar el display de vidas después de consumir una vida
+        updateLivesDisplay();
+        // Forzar re-render del componente
+        setForceUpdate(prev => prev + 1);
     };
 
     const handleHint = async (hint: string) => {
@@ -240,6 +317,14 @@ const GameScreen: React.FC<GameScreenProps> = ({ level, onBack, onLevelComplete,
                     <Text style={styles.subtitle}>{getDifficultyText(level.difficulty)} • {level.gridSize}x{level.gridSize}</Text>
                 </View>
                 <View style={styles.headerRight}>
+                    {/* Display de vidas */}
+                    <LivesDisplay
+                        compact={true}
+                        livesState={livesState}
+                        timeRemaining={timeRemaining}
+                        forceUpdate={forceUpdate}
+                    />
+
                     {/* Botón de ajustes de audio */}
                     {onShowAudioSettings && (
                         <TouchableOpacity
@@ -265,6 +350,8 @@ const GameScreen: React.FC<GameScreenProps> = ({ level, onBack, onLevelComplete,
                     onHint={handleHint}
                     levelId={level.id}
                     hintsUsed={hintsUsed}
+                    onLifeConsumed={handleLifeConsumed}
+                    onLivesUpdated={handleLivesUpdated}
                 />
             </View>
 
@@ -304,6 +391,14 @@ const GameScreen: React.FC<GameScreenProps> = ({ level, onBack, onLevelComplete,
                     </TouchableOpacity>
                 )}
             </View>
+
+            {/* Modal de Game Over */}
+            <GameOverModal
+                visible={showGameOverModal}
+                onClose={() => setShowGameOverModal(false)}
+                onLivesRestored={handleGameOverLivesRestored}
+                onExitLevel={handleGameOverExitLevel}
+            />
         </SafeAreaView>
     );
 };

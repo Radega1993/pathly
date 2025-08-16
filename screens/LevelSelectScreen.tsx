@@ -28,6 +28,9 @@ import {
     isLevelCompleted,
     getLastLevelPlayed,
 } from '../services';
+import LivesDisplay from '../components/LivesDisplay';
+import LivesModal from '../components/LivesModal';
+import { useLives } from '../utils/useLives';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -63,6 +66,12 @@ const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, on
     const [currentRange, setCurrentRange] = useState({ start: 1, end: 20 });
     const [hasMoreLevels, setHasMoreLevels] = useState(true);
     const [maxLevelAvailable, setMaxLevelAvailable] = useState(0);
+
+    // Estados para el sistema de vidas
+    const [showLivesModal, setShowLivesModal] = useState(false);
+
+    // Hook para manejar vidas
+    const { canPlay } = useLives();
 
     const PAGE_SIZE = 20;
 
@@ -292,6 +301,12 @@ const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, on
             return;
         }
 
+        // Verificar si el usuario tiene vidas para jugar
+        if (!canPlay) {
+            setShowLivesModal(true);
+            return;
+        }
+
         try {
             console.log(`🎮 Intentando cargar nivel ${level.levelNumber} desde ID: ${level.id}`);
             const firestoreLevel = await loadLevelByNumber(level.levelNumber);
@@ -486,6 +501,12 @@ const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, on
                 </TouchableOpacity>
                 <Text style={styles.title}>🎮 Pathly</Text>
                 <View style={styles.headerRight}>
+                    {/* Display de vidas */}
+                    <LivesDisplay
+                        onShowLivesModal={() => setShowLivesModal(true)}
+                        compact={true}
+                    />
+
                     {/* Botón de ajustes de audio */}
                     {onShowAudioSettings && (
                         <TouchableOpacity
@@ -606,6 +627,16 @@ const LevelSelectScreen: React.FC<LevelSelectScreenProps> = ({ onLevelSelect, on
                 </TouchableOpacity>
                 */}
             </View>
+
+            {/* Modal de vidas */}
+            <LivesModal
+                visible={showLivesModal}
+                onClose={() => setShowLivesModal(false)}
+                onLivesRestored={() => {
+                    // Recargar el estado de vidas en el display
+                    setShowLivesModal(false);
+                }}
+            />
         </SafeAreaView>
     );
 };

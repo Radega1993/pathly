@@ -80,4 +80,22 @@ export {
     setUserID,
     getFormattedPrice,
     getPackageDescription
-} from './purchases'; 
+} from './purchases';
+
+// Exportar funciones del servicio de vidas
+export {
+    getLivesState,
+    saveLivesState,
+    consumeLife,
+    regenerateLives,
+    regenerateAllLives,
+    getTimeUntilNextLife,
+    canPlay,
+    getCurrentLivesState,
+    showLivesRewardedAd,
+    formatTimeRemaining,
+    LIVES_CONFIG
+} from './livesService';
+
+// Exportar tipos del servicio de vidas
+export type { LivesState } from './livesService'; 

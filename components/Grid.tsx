@@ -27,13 +27,15 @@ export interface GridProps {
     onHint?: (hint: string) => void;
     levelId?: string; // ID del nivel para tracking de pistas
     hintsUsed?: number; // Número de pistas usadas en este nivel
+    onLifeConsumed?: () => void; // Callback cuando se consume una vida
+    onLivesUpdated?: () => void; // Callback para actualizar display de vidas
 }
 
 const { width: screenWidth } = Dimensions.get('window');
 const GRID_MARGIN = 80; // Aumentado de 20 a 40
 const getCellSize = (gridSize: number) => Math.min((screenWidth - GRID_MARGIN * 2) / gridSize, 60);
 
-const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHint, levelId, hintsUsed = 0 }) => {
+const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHint, levelId, hintsUsed = 0, onLifeConsumed, onLivesUpdated }) => {
     const [path, setPath] = useState<Cell[]>([]);
     const [isDrawing, setIsDrawing] = useState(false);
     const [hintCell, setHintCell] = useState<Cell | null>(null);
@@ -137,6 +139,27 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
             return;
         }
 
+        // Si es el número 1 y ya hay un path, es un reinicio (consumir vida)
+        if (cell.value === 1 && path.length > 1) {
+            // Llamar al callback de consumo de vida
+            if (onLifeConsumed) {
+                onLifeConsumed();
+            }
+
+            // Actualizar display de vidas después de consumir
+            if (onLivesUpdated) {
+                onLivesUpdated();
+            }
+
+            // Reiniciar el path
+            const newPath = [cell];
+            setPath(newPath);
+            pathRef.current = newPath;
+            onPathChange?.(newPath);
+            audioService.playForwardSound();
+            return;
+        }
+
         // Si la celda es la última del path, no hacer nada
         const lastCell = path[path.length - 1];
         if (lastCell.x === cell.x && lastCell.y === cell.y) {
@@ -145,13 +168,51 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
 
         // Si la celda ya está en el path (retroceso)
         const cellIndex = path.findIndex(c => c.x === cell.x && c.y === cell.y);
+
         if (cellIndex !== -1) {
+            // Solo consumir vida si realmente retrocedemos (no si tocamos la misma celda)
+            if (cellIndex < path.length - 1) {
+                // Llamar al callback de consumo de vida
+                if (onLifeConsumed) {
+                    onLifeConsumed();
+                }
+
+                // Actualizar display de vidas después de consumir
+                if (onLivesUpdated) {
+                    onLivesUpdated();
+                }
+            }
+
             const newPath = path.slice(0, cellIndex + 1);
             setPath(newPath);
             pathRef.current = newPath;
             onPathChange?.(newPath);
             audioService.playBackSound();
             return;
+        }
+
+        // Detectar retroceso por tocar una celda que no es adyacente al último
+        if (!isCellAdjacent(cell, lastCell)) {
+            // Buscar si la celda está en algún lugar del path
+            const retrocesoIndex = path.findIndex(c => c.x === cell.x && c.y === cell.y);
+            if (retrocesoIndex !== -1) {
+                // Llamar al callback de consumo de vida
+                if (onLifeConsumed) {
+                    onLifeConsumed();
+                }
+
+                // Actualizar display de vidas después de consumir
+                if (onLivesUpdated) {
+                    onLivesUpdated();
+                }
+
+                const newPath = path.slice(0, retrocesoIndex + 1);
+                setPath(newPath);
+                pathRef.current = newPath;
+                onPathChange?.(newPath);
+                audioService.playBackSound();
+                return;
+            }
         }
 
         // Solo añadir si es adyacente y no está en el path
