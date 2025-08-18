@@ -4,7 +4,7 @@ export default {
     expo: {
         name: "Pathly Game",
         slug: "pathly-game",
-        version: "1.1.3",
+        version: "1.2.0",
         orientation: "default",
         icon: "./assets/icon.png",
         userInterfaceStyle: "light",

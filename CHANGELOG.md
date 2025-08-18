@@ -90,6 +90,24 @@
 
 ---
 
+## [1.2.0] - 2024-12-24
+
+### ✨ New Features
+- **Enhanced Gameplay**: Improved puzzle solving mechanics
+- **Performance Optimization**: Better app performance and responsiveness
+- **User Experience**: Enhanced overall user experience
+
+### 🔧 Bug Fixes
+- **Authentication**: Fixed authentication system issues
+- **User Session**: Improved session management and persistence
+- **Login Flow**: Enhanced login and registration process stability
+
+### 📱 Technical Improvements
+- **Auth Error Handling**: Better error handling for authentication failures
+- **Session Persistence**: Improved session persistence across app restarts
+- **Security**: Enhanced authentication security measures
+- **Performance**: Optimized app performance and memory usage
+
 ## [1.1.2] - 2024-12-24
 
 ### 🔧 Bug Fixes

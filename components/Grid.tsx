@@ -126,7 +126,7 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
         return true;
     };
 
-    const addCellToPath = (cell: Cell) => {
+    const addCellToPath = (cell: Cell, isIntentionalClick: boolean = false) => {
         const path = pathRef.current;
         // Si el path está vacío, solo permite empezar en el número 1
         if (path.length === 0) {
@@ -141,14 +141,17 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
 
         // Si es el número 1 y ya hay un path, es un reinicio (consumir vida)
         if (cell.value === 1 && path.length > 1) {
-            // Llamar al callback de consumo de vida
-            if (onLifeConsumed) {
-                onLifeConsumed();
-            }
+            // Solo consumir vida si es un clic intencional, no durante arrastre
+            if (isIntentionalClick) {
+                // Llamar al callback de consumo de vida
+                if (onLifeConsumed) {
+                    onLifeConsumed();
+                }
 
-            // Actualizar display de vidas después de consumir
-            if (onLivesUpdated) {
-                onLivesUpdated();
+                // Actualizar display de vidas después de consumir
+                if (onLivesUpdated) {
+                    onLivesUpdated();
+                }
             }
 
             // Reiniciar el path
@@ -170,8 +173,8 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
         const cellIndex = path.findIndex(c => c.x === cell.x && c.y === cell.y);
 
         if (cellIndex !== -1) {
-            // Solo consumir vida si realmente retrocedemos (no si tocamos la misma celda)
-            if (cellIndex < path.length - 1) {
+            // Solo consumir vida si realmente retrocedemos Y es un clic intencional
+            if (cellIndex < path.length - 1 && isIntentionalClick) {
                 // Llamar al callback de consumo de vida
                 if (onLifeConsumed) {
                     onLifeConsumed();
@@ -196,14 +199,17 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
             // Buscar si la celda está en algún lugar del path
             const retrocesoIndex = path.findIndex(c => c.x === cell.x && c.y === cell.y);
             if (retrocesoIndex !== -1) {
-                // Llamar al callback de consumo de vida
-                if (onLifeConsumed) {
-                    onLifeConsumed();
-                }
+                // Solo consumir vida si es un clic intencional, no durante arrastre
+                if (isIntentionalClick) {
+                    // Llamar al callback de consumo de vida
+                    if (onLifeConsumed) {
+                        onLifeConsumed();
+                    }
 
-                // Actualizar display de vidas después de consumir
-                if (onLivesUpdated) {
-                    onLivesUpdated();
+                    // Actualizar display de vidas después de consumir
+                    if (onLivesUpdated) {
+                        onLivesUpdated();
+                    }
                 }
 
                 const newPath = path.slice(0, retrocesoIndex + 1);
@@ -301,7 +307,7 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
 
             // Si hay un camino iniciado, intentar añadir la celda
             if (pathRef.current.length > 0) {
-                addCellToPath(cell);
+                addCellToPath(cell, false); // false = no es clic intencional (es arrastre)
             }
         });
     };
@@ -366,7 +372,7 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
             return;
         }
 
-        addCellToPath(cell);
+        addCellToPath(cell, true); // true = es clic intencional
     };
 
     const handleCellLongPress = (cell: Cell) => {
@@ -379,7 +385,7 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
             onPathChange?.(newPath);
             audioService.playForwardSound();
         } else {
-            addCellToPath(cell);
+            addCellToPath(cell, true); // true = es clic intencional
         }
     };
 
