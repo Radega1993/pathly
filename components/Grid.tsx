@@ -128,6 +128,8 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
 
     const addCellToPath = (cell: Cell, isIntentionalClick: boolean = false) => {
         const path = pathRef.current;
+
+
         // Si el path está vacío, solo permite empezar en el número 1
         if (path.length === 0) {
             if (cell.value === 1) {
@@ -139,29 +141,8 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
             return;
         }
 
-        // Si es el número 1 y ya hay un path, es un reinicio (consumir vida)
-        if (cell.value === 1 && path.length > 1) {
-            // Solo consumir vida si es un clic intencional, no durante arrastre
-            if (isIntentionalClick) {
-                // Llamar al callback de consumo de vida
-                if (onLifeConsumed) {
-                    onLifeConsumed();
-                }
-
-                // Actualizar display de vidas después de consumir
-                if (onLivesUpdated) {
-                    onLivesUpdated();
-                }
-            }
-
-            // Reiniciar el path
-            const newPath = [cell];
-            setPath(newPath);
-            pathRef.current = newPath;
-            onPathChange?.(newPath);
-            audioService.playForwardSound();
-            return;
-        }
+        // ELIMINADO: Lógica de reinicio especial para el número 1
+        // Ahora el número 1 también usa la lógica normal de retroceso
 
         // Si la celda es la última del path, no hacer nada
         const lastCell = path[path.length - 1];
@@ -173,7 +154,10 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
         const cellIndex = path.findIndex(c => c.x === cell.x && c.y === cell.y);
 
         if (cellIndex !== -1) {
-            // Solo consumir vida si realmente retrocedemos Y es un clic intencional
+
+
+            // Consumir vida cuando retrocedemos (incluyendo retroceso al inicio)
+            // Solo si es un clic intencional y estamos retrocediendo desde alguna posición
             if (cellIndex < path.length - 1 && isIntentionalClick) {
                 // Llamar al callback de consumo de vida
                 if (onLifeConsumed) {
@@ -356,8 +340,8 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
 
 
     const handleCellPress = (cell: Cell) => {
-        // Si es el número 1, iniciar nuevo camino
-        if (cell.value === 1) {
+        // Si es el número 1 Y no hay camino, iniciar nuevo camino
+        if (cell.value === 1 && path.length === 0) {
             const newPath = [cell];
             setPath(newPath);
             pathRef.current = newPath;

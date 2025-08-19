@@ -84,20 +84,10 @@ const LivesModal: React.FC<LivesModalProps> = ({ visible, onClose, onLivesRestor
             const success = await showLivesRewardedAd();
 
             if (success) {
-                Alert.alert(
-                    '❤️ ¡Vidas Restauradas!',
-                    'Has recuperado todas tus vidas. ¡Disfruta jugando!',
-                    [
-                        {
-                            text: '¡Genial!',
-                            onPress: () => {
-                                loadLivesState();
-                                onLivesRestored?.();
-                                onClose();
-                            }
-                        }
-                    ]
-                );
+                // Vidas restauradas exitosamente, actualizar estado y cerrar modal
+                await loadLivesState();
+                onLivesRestored?.();
+                onClose();
             } else {
                 Alert.alert(
                     '❌ Error',

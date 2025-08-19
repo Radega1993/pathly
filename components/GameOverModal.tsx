@@ -36,19 +36,9 @@ const GameOverModal: React.FC<GameOverModalProps> = ({
             const success = await showLivesRewardedAd();
 
             if (success) {
-                Alert.alert(
-                    '❤️ ¡Vidas Restauradas!',
-                    'Has recuperado todas tus vidas. ¡Continúa jugando!',
-                    [
-                        {
-                            text: '¡Continuar!',
-                            onPress: () => {
-                                onLivesRestored();
-                                onClose();
-                            }
-                        }
-                    ]
-                );
+                // Vidas restauradas exitosamente, cerrar modal y continuar
+                onLivesRestored();
+                onClose();
             } else {
                 Alert.alert(
                     '❌ Error',
