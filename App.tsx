@@ -311,7 +311,7 @@ export default function App() {
 
               {/* Footer */}
               <View style={styles.footer}>
-                <Text style={styles.footerText}>Versión 1.2.1</Text>
+                <Text style={styles.footerText}>Versión 1.2.2</Text>
               </View>
             </View>
           </SafeAreaView>

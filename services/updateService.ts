@@ -62,12 +62,12 @@ class UpdateService {
 
         if (Platform.OS === 'android') {
             return {
-                version: manifest?.version || '1.2.1',
-                versionCode: manifest?.android?.versionCode || 23,
+                version: manifest?.version || '1.2.2',
+                versionCode: manifest?.android?.versionCode || 24,
             };
         } else {
             return {
-                version: manifest?.version || '1.2.1',
+                version: manifest?.version || '1.2.2',
                 versionCode: manifest?.ios?.buildNumber ? parseInt(manifest.ios.buildNumber) : 1,
             };
         }
