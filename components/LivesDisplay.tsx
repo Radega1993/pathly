@@ -12,26 +12,17 @@ import { useLives } from '../utils/useLives';
 interface LivesDisplayProps {
     onShowLivesModal?: () => void;
     compact?: boolean; // Para mostrar versión compacta
-    livesState?: {
-        currentLives: number;
-        lastRegenerationTime: number;
-    };
-    timeRemaining?: number;
-    forceUpdate?: number; // Para forzar re-render
 }
 
 const LivesDisplay: React.FC<LivesDisplayProps> = ({
     onShowLivesModal,
     compact = false,
-    livesState: propLivesState,
-    timeRemaining: propTimeRemaining,
-    forceUpdate
 }) => {
-    // Usar props si están disponibles, sino usar el hook
-    const hookLives = useLives();
-    const livesState = propLivesState || hookLives.livesState;
-    const timeRemaining = propTimeRemaining !== undefined ? propTimeRemaining : hookLives.timeRemaining;
-    const formatTimeRemaining = hookLives.formatTimeRemaining;
+    // Usar el hook para obtener el estado de vidas
+    const { livesState, timeRemaining, formatTimeRemaining } = useLives();
+
+    // Debug: Log cuando cambia el estado
+    console.log('🔄 LivesDisplay render - Vidas:', livesState.currentLives, 'Tiempo:', timeRemaining, 'Timestamp:', Date.now());
 
     const renderHeart = (index: number) => {
         const isFilled = index < livesState.currentLives;

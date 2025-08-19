@@ -676,16 +676,23 @@ const Grid: React.FC<GridProps> = ({ grid, solution, onPathChange, onReset, onHi
     };
 
     const handleHint = async () => {
+        console.log('🔍 DEBUG: Botón de pista presionado');
+        console.log('🔍 DEBUG: levelId:', levelId);
+        console.log('🔍 DEBUG: hintsUsed:', hintsUsed);
+
         if (!levelId) {
             console.error('❌ levelId no proporcionado para pista');
             return;
         }
 
         try {
+            console.log('🔄 Intentando obtener pista...');
             // Intentar obtener pista (gratis o con anuncio)
             const hintGranted = await getAdHint(levelId);
+            console.log('🔍 DEBUG: hintGranted:', hintGranted);
 
             if (hintGranted) {
+                console.log('✅ Pista otorgada, mostrando sugerencia...');
                 // Pista otorgada, mostrar sugerencia
                 const hint = getHint();
                 onHint?.(hint);

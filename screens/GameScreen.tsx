@@ -47,13 +47,10 @@ const GameScreen: React.FC<GameScreenProps> = ({ level, onBack, onLevelComplete,
     const [hintsUsed, setHintsUsed] = useState(0);
 
     // Hook para manejar vidas
-    const { consumeLifeAndUpdate, canPlay, updateLivesDisplay, livesState, timeRemaining } = useLives();
+    const { consumeLifeAndUpdate, canPlay, updateLivesDisplay } = useLives();
 
     // Estado para el modal de Game Over
     const [showGameOverModal, setShowGameOverModal] = useState(false);
-
-    // Estado para forzar actualización del display
-    const [forceUpdate, setForceUpdate] = useState(0);
 
     // Usar el grid del nivel de Firestore
     const [gridData] = useState<Cell[][]>(() => level.grid);
@@ -178,8 +175,6 @@ const GameScreen: React.FC<GameScreenProps> = ({ level, onBack, onLevelComplete,
     const handleLivesUpdated = () => {
         // Actualizar el display de vidas después de consumir una vida
         updateLivesDisplay();
-        // Forzar re-render del componente
-        setForceUpdate(prev => prev + 1);
     };
 
     const handleHint = async (hint: string) => {
@@ -320,9 +315,6 @@ const GameScreen: React.FC<GameScreenProps> = ({ level, onBack, onLevelComplete,
                     {/* Display de vidas */}
                     <LivesDisplay
                         compact={true}
-                        livesState={livesState}
-                        timeRemaining={timeRemaining}
-                        forceUpdate={forceUpdate}
                     />
 
                     {/* Botón de ajustes de audio */}

@@ -99,8 +99,8 @@ class AdsManager {
                 keywords: ['puzzle', 'game', 'brain'],
             });
 
-            // Crear anuncio recompensado
-            this.rewardedAd = RewardedAd.createForAdRequest(AD_IDS.REWARDED, {
+            // Crear anuncio intersticial para pistas (usando el ID de "recompensado" como intersticial)
+            this.rewardedAd = InterstitialAd.createForAdRequest(AD_IDS.REWARDED, {
                 requestNonPersonalizedAdsOnly: true,
                 keywords: ['puzzle', 'game', 'brain'],
             });
@@ -134,17 +134,80 @@ class AdsManager {
         if (!this.rewardedAd || this.useMockAds) return;
 
         try {
-            console.log('🔄 Loading rewarded ad...');
-            await this.rewardedAd.load();
+            console.log('🔄 Loading hint interstitial ad...');
+            console.log('🔍 DEBUG: Hint interstitial ad ID:', AD_IDS.REWARDED);
+            console.log('🔍 DEBUG: Hint interstitial ad object exists:', !!this.rewardedAd);
+            console.log('🔍 DEBUG: Hint interstitial ad object type:', typeof this.rewardedAd);
+
+            // Verificar si el objeto tiene los métodos necesarios
+            console.log('🔍 DEBUG: Has load method:', typeof this.rewardedAd.load === 'function');
+            console.log('🔍 DEBUG: Has addAdEventListener method:', typeof this.rewardedAd.addAdEventListener === 'function');
+
+            // Agregar listener para eventos de carga
+            const unsubscribeLoaded = this.rewardedAd.addAdEventListener(
+                AdEventType.LOADED,
+                () => {
+                    console.log('✅ Hint interstitial ad loaded event fired');
+                }
+            );
+
+            const unsubscribeError = this.rewardedAd.addAdEventListener(
+                AdEventType.ERROR,
+                (error: any) => {
+                    console.error('❌ Hint interstitial ad load error event:', error);
+                    console.error('❌ Error code:', error?.code);
+                    console.error('❌ Error message:', error?.message);
+                }
+            );
+
+            console.log('🔄 Calling rewardedAd.load()...');
+
+            // Intentar cargar con timeout
+            const loadPromise = this.rewardedAd.load();
+            const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('Load timeout')), 15000); // 15 segundos
+            });
+
+            await Promise.race([loadPromise, timeoutPromise]);
+            console.log('🔄 load() promise resolved');
+
+            // Esperar más tiempo para que se procese completamente
+            console.log('🔄 Waiting for ad to be fully loaded...');
+            for (let i = 0; i < 10; i++) {
+                await new Promise(resolve => setTimeout(resolve, 500));
+                if (this.rewardedAd.loaded) {
+                    console.log(`✅ Ad loaded after ${(i + 1) * 500}ms`);
+                    break;
+                }
+                console.log(`🔄 Still waiting... (${(i + 1) * 500}ms)`);
+            }
 
             // Verificar si realmente se cargó
+            console.log('🔍 DEBUG: Checking if ad is loaded...');
+            console.log('🔍 DEBUG: this.rewardedAd.loaded:', this.rewardedAd.loaded);
+
             if (this.rewardedAd.loaded) {
-                console.log('✅ Rewarded ad loaded successfully');
+                console.log('✅ Hint interstitial ad loaded successfully');
             } else {
-                console.error('❌ Rewarded ad failed to load');
+                console.error('❌ Hint interstitial ad failed to load - loaded property is false');
+                console.log('🔍 DEBUG: Ad object after load attempt:', {
+                    loaded: this.rewardedAd.loaded,
+                    hasLoad: typeof this.rewardedAd.load === 'function',
+                    hasShow: typeof this.rewardedAd.show === 'function'
+                });
             }
+
+            // Limpiar listeners
+            unsubscribeLoaded();
+            unsubscribeError();
+
         } catch (error) {
-            console.error('❌ Error loading rewarded ad:', error);
+            console.error('❌ Error loading hint interstitial ad:', error);
+            if (error instanceof Error) {
+                console.error('❌ Error name:', error.name);
+                console.error('❌ Error message:', error.message);
+                console.error('❌ Error stack:', error.stack);
+            }
         }
     }
 
@@ -216,62 +279,51 @@ class AdsManager {
 
                 // Si estamos usando mock ads, simular el comportamiento
                 if (this.useMockAds) {
-                    console.log('🔄 Showing rewarded ad (mock)...');
+                    console.log('🔄 Showing hint interstitial ad (mock)...');
                     await new Promise(resolve => setTimeout(resolve, 1000));
-                    console.log('✅ Rewarded ad completed (mock)');
+                    console.log('✅ Hint interstitial ad completed (mock)');
                     resolve(true);
                     return;
                 }
 
                 if (!this.rewardedAd) {
-                    console.error('❌ Rewarded ad not initialized');
+                    console.error('❌ Hint interstitial ad not initialized');
                     resolve(false);
                     return;
                 }
 
-                console.log('🔄 Showing rewarded ad...');
+                console.log('🔄 Showing hint interstitial ad...');
 
-                let rewardEarned = false;
                 let adShown = false;
 
                 // Configurar listeners
                 const unsubscribeLoaded = this.rewardedAd.addAdEventListener(
-                    RewardedAdEventType.LOADED,
+                    AdEventType.LOADED,
                     () => {
-                        console.log('✅ Rewarded ad loaded in listener');
-                    }
-                );
-
-                const unsubscribeEarned = this.rewardedAd.addAdEventListener(
-                    RewardedAdEventType.EARNED_REWARD,
-                    () => {
-                        console.log('✅ User earned reward');
-                        rewardEarned = true;
+                        console.log('✅ Hint interstitial ad loaded in listener');
                     }
                 );
 
                 const unsubscribeClosed = this.rewardedAd.addAdEventListener(
                     AdEventType.CLOSED,
                     () => {
-                        console.log('✅ Rewarded ad closed');
+                        console.log('✅ Hint interstitial ad closed');
                         unsubscribeLoaded();
-                        unsubscribeEarned();
                         unsubscribeClosed();
                         unsubscribeError();
 
                         // Cargar nuevo anuncio para la próxima vez
                         this.loadRewardedAd();
 
-                        resolve(rewardEarned);
+                        resolve(true); // Siempre otorgar recompensa al cerrar
                     }
                 );
 
                 const unsubscribeError = this.rewardedAd.addAdEventListener(
                     AdEventType.ERROR,
                     (error: any) => {
-                        console.error('❌ Rewarded ad error:', error);
+                        console.error('❌ Hint interstitial ad error:', error);
                         unsubscribeLoaded();
-                        unsubscribeEarned();
                         unsubscribeClosed();
                         unsubscribeError();
 
@@ -287,17 +339,20 @@ class AdsManager {
                     console.log('🔄 Loading rewarded ad before showing...');
                     await this.loadRewardedAd();
 
-                    // Esperar un poco para que se cargue
-                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    // Esperar más tiempo para que se cargue completamente
+                    console.log('🔄 Waiting for ad to be ready...');
+                    for (let i = 0; i < 20; i++) {
+                        await new Promise(resolve => setTimeout(resolve, 250));
+                        if (this.rewardedAd.loaded) {
+                            console.log(`✅ Ad ready after ${(i + 1) * 250}ms`);
+                            break;
+                        }
+                    }
 
                     if (!this.rewardedAd.loaded) {
                         console.error('❌ Failed to load rewarded ad after retry');
-                        unsubscribeLoaded();
-                        unsubscribeEarned();
-                        unsubscribeClosed();
-                        unsubscribeError();
-                        resolve(false);
-                        return;
+                        console.log('⚠️ Attempting to show ad anyway...');
+                        // Intentar mostrar el anuncio de todas formas
                     }
                 }
 
@@ -390,6 +445,20 @@ class AdsManager {
             } else {
                 // Pistas adicionales requieren anuncio
                 console.log('🔄 Pista adicional requiere anuncio');
+
+                // Verificar si el anuncio recompensado está disponible
+                if (!this.rewardedAd || !this.rewardedAd.loaded) {
+                    console.log('⚠️ Rewarded ad not available, attempting to load...');
+                    await this.loadRewardedAd();
+
+                    // Si aún no está disponible, otorgar pista gratis temporalmente
+                    if (!this.rewardedAd || !this.rewardedAd.loaded) {
+                        console.log('⚠️ Rewarded ad still not available, granting free hint');
+                        await this.incrementHintsUsedInLevel(levelId);
+                        return true;
+                    }
+                }
+
                 const rewardEarned = await this.showRewardedAd();
                 console.log('🔍 DEBUG: rewardEarned:', rewardEarned);
 
@@ -404,7 +473,10 @@ class AdsManager {
             }
         } catch (error) {
             console.error('❌ Error getting hint:', error);
-            return false;
+            // En caso de error, otorgar pista gratis
+            console.log('⚠️ Error occurred, granting free hint as fallback');
+            await this.incrementHintsUsedInLevel(levelId);
+            return true;
         }
     }
 

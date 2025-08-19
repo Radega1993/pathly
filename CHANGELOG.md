@@ -90,6 +90,18 @@
 
 ---
 
+## [1.2.1] - 2024-12-24
+
+### 🔧 Bug Fixes
+- **Performance**: Fixed performance issues and optimized app responsiveness
+- **Stability**: Improved app stability and crash prevention
+- **User Experience**: Enhanced overall user experience
+
+### 📱 Technical Improvements
+- **Memory Management**: Better memory usage optimization
+- **Performance**: Optimized app performance and loading times
+- **Stability**: Enhanced app stability and error handling
+
 ## [1.2.0] - 2024-12-24
 
 ### ✨ New Features
