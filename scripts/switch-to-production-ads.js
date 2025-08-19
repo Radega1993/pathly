@@ -6,11 +6,11 @@ const path = require('path');
 console.log('🔄 Switching to AdMob Production Ads - Pathly Game');
 console.log('==================================================\n');
 
-// IDs de producción de AdMob
+// IDs de producción de AdMob - Ambos son "Intersticiales bonificados"
 const PRODUCTION_IDS = {
     ANDROID_APP_ID: 'ca-app-pub-4553067801626383~6760188699',
-    INTERSTITIAL_ID: 'ca-app-pub-4553067801626383/6963330688',
-    REWARDED_ID: 'ca-app-pub-4553067801626383/6975611425'
+    INTERSTITIAL_ID: 'ca-app-pub-4553067801626383/6975611425', // intrinsecal_pista - Intersticial bonificado
+    REWARDED_ID: 'ca-app-pub-4553067801626383/6963330688'       // pista - Intersticial bonificado
 };
 
 // Leer el archivo .env actual

@@ -32,9 +32,7 @@ export const useLives = () => {
 
     const updateLivesDisplay = useCallback(async () => {
         try {
-            console.log('🔄 updateLivesDisplay ejecutándose...');
             await livesStore.updateDisplay();
-            console.log('✅ updateLivesDisplay completado');
         } catch (error) {
             console.error('❌ Error actualizando display de vidas:', error);
         }

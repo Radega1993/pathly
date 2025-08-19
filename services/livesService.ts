@@ -129,7 +129,6 @@ export const regenerateLives = async (): Promise<LivesState> => {
             };
 
             await saveLivesState(newState);
-            console.log(`❤️ Regeneradas ${newLives - state.currentLives} vidas. Total: ${newLives}`);
             return newState;
         }
 
@@ -152,7 +151,6 @@ export const regenerateAllLives = async (): Promise<LivesState> => {
         };
 
         await saveLivesState(newState);
-        console.log(`❤️ Todas las vidas regeneradas. Total: ${LIVES_CONFIG.MAX_LIVES}`);
         return newState;
     } catch (error) {
         console.error('Error al regenerar todas las vidas:', error);

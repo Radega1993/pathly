@@ -36,15 +36,13 @@ class LivesStore {
 
     private async loadState() {
         try {
-            console.log('🔄 LivesStore: Cargando estado...');
             const [state, timeRemaining] = await Promise.all([
                 getCurrentLivesState(),
                 getTimeUntilNextLife(),
             ]);
             this.state = state;
             this.timeRemaining = timeRemaining;
-            console.log('✅ LivesStore: Estado actualizado - Vidas:', state.currentLives, 'Tiempo:', timeRemaining);
-            this.notifyListeners();
+            +            this.notifyListeners();
         } catch (error) {
             console.error('❌ LivesStore: Error cargando estado de vidas:', error);
         }
@@ -90,10 +88,8 @@ class LivesStore {
 
     public async consumeLife(): Promise<boolean> {
         try {
-            console.log('🔄 LivesStore: Consumiendo vida...');
             const success = await consumeLife();
             if (success) {
-                console.log('✅ LivesStore: Vida consumida exitosamente');
                 await this.loadState();
             } else {
                 console.log('❌ LivesStore: No se pudo consumir vida');

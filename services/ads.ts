@@ -4,21 +4,25 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Intentar importar react-native-google-mobile-ads, con fallback a mock
 let InterstitialAd: any;
 let RewardedAd: any;
+let RewardedInterstitialAd: any;
 let TestIds: any;
 let BannerAd: any;
 let BannerAdSize: any;
 let AdEventType: any;
 let RewardedAdEventType: any;
+let RewardedInterstitialAdEventType: any;
 
 try {
     const adsModule = require('react-native-google-mobile-ads');
     InterstitialAd = adsModule.InterstitialAd;
     RewardedAd = adsModule.RewardedAd;
+    RewardedInterstitialAd = adsModule.RewardedInterstitialAd;
     TestIds = adsModule.TestIds;
     BannerAd = adsModule.BannerAd;
     BannerAdSize = adsModule.BannerAdSize;
     AdEventType = adsModule.AdEventType;
     RewardedAdEventType = adsModule.RewardedAdEventType;
+    RewardedInterstitialAdEventType = adsModule.RewardedInterstitialAdEventType;
     console.log('✅ react-native-google-mobile-ads loaded successfully');
 } catch (error) {
     console.warn('⚠️ react-native-google-mobile-ads not available, using mock implementation');
@@ -26,10 +30,11 @@ try {
 }
 
 // Configuración de AdMob - IDs desde variables de entorno
+// Nota: Ambos son "Intersticiales bonificados" en AdMob Console
 const AD_IDS = {
     ANDROID_APP_ID: process.env.ADMOB_ANDROID_APP_ID,
-    INTERSTITIAL: process.env.ADMOB_INTERSTITIAL_ID,
-    REWARDED: process.env.ADMOB_REWARDED_ID,
+    INTERSTITIAL: process.env.ADMOB_INTERSTITIAL_ID,        // Intersticial bonificado para niveles
+    REWARDED: process.env.ADMOB_REWARDED_ID,               // Intersticial bonificado para pistas
 };
 
 // Validar que las variables de entorno estén configuradas
@@ -40,10 +45,6 @@ if (!AD_IDS.ANDROID_APP_ID || !AD_IDS.INTERSTITIAL || !AD_IDS.REWARDED) {
 }
 
 console.log('✅ AdMob configuration loaded');
-console.log('✅ Using environment variables for AdMob IDs');
-console.log('✅ Android App ID:', AD_IDS.ANDROID_APP_ID);
-console.log('✅ Interstitial ID:', AD_IDS.INTERSTITIAL);
-console.log('✅ Rewarded ID:', AD_IDS.REWARDED);
 
 // Claves para AsyncStorage
 const STORAGE_KEYS = {
@@ -85,7 +86,7 @@ class AdsManager {
             console.log('🔄 Initializing AdMob...');
 
             // Verificar si el módulo nativo está disponible
-            if (!InterstitialAd || !RewardedAd) {
+            if (!InterstitialAd || !RewardedAd || !RewardedInterstitialAd) {
                 console.warn('⚠️ Native AdMob module not available, using mock ads');
                 this.useMockAds = true;
                 this.isInitialized = true;
@@ -93,14 +94,14 @@ class AdsManager {
                 return;
             }
 
-            // Crear anuncio intersticial
-            this.interstitialAd = InterstitialAd.createForAdRequest(AD_IDS.INTERSTITIAL, {
+            // Crear anuncio intersticial bonificado para niveles
+            this.interstitialAd = RewardedInterstitialAd.createForAdRequest(AD_IDS.INTERSTITIAL, {
                 requestNonPersonalizedAdsOnly: true,
                 keywords: ['puzzle', 'game', 'brain'],
             });
 
-            // Crear anuncio intersticial para pistas (usando el ID de "recompensado" como intersticial)
-            this.rewardedAd = InterstitialAd.createForAdRequest(AD_IDS.REWARDED, {
+            // Crear anuncio intersticial bonificado para pistas
+            this.rewardedAd = RewardedInterstitialAd.createForAdRequest(AD_IDS.REWARDED, {
                 requestNonPersonalizedAdsOnly: true,
                 keywords: ['puzzle', 'game', 'brain'],
             });
@@ -124,9 +125,9 @@ class AdsManager {
 
         try {
             await this.interstitialAd.load();
-            console.log('✅ Interstitial ad loaded');
+            console.log('✅ Rewarded interstitial ad loaded');
         } catch (error) {
-            console.error('❌ Error loading interstitial ad:', error);
+            console.error('❌ Error loading rewarded interstitial ad:', error);
         }
     }
 
@@ -134,33 +135,6 @@ class AdsManager {
         if (!this.rewardedAd || this.useMockAds) return;
 
         try {
-            console.log('🔄 Loading hint interstitial ad...');
-            console.log('🔍 DEBUG: Hint interstitial ad ID:', AD_IDS.REWARDED);
-            console.log('🔍 DEBUG: Hint interstitial ad object exists:', !!this.rewardedAd);
-            console.log('🔍 DEBUG: Hint interstitial ad object type:', typeof this.rewardedAd);
-
-            // Verificar si el objeto tiene los métodos necesarios
-            console.log('🔍 DEBUG: Has load method:', typeof this.rewardedAd.load === 'function');
-            console.log('🔍 DEBUG: Has addAdEventListener method:', typeof this.rewardedAd.addAdEventListener === 'function');
-
-            // Agregar listener para eventos de carga
-            const unsubscribeLoaded = this.rewardedAd.addAdEventListener(
-                AdEventType.LOADED,
-                () => {
-                    console.log('✅ Hint interstitial ad loaded event fired');
-                }
-            );
-
-            const unsubscribeError = this.rewardedAd.addAdEventListener(
-                AdEventType.ERROR,
-                (error: any) => {
-                    console.error('❌ Hint interstitial ad load error event:', error);
-                    console.error('❌ Error code:', error?.code);
-                    console.error('❌ Error message:', error?.message);
-                }
-            );
-
-            console.log('🔄 Calling rewardedAd.load()...');
 
             // Intentar cargar con timeout
             const loadPromise = this.rewardedAd.load();
@@ -169,45 +143,17 @@ class AdsManager {
             });
 
             await Promise.race([loadPromise, timeoutPromise]);
-            console.log('🔄 load() promise resolved');
 
-            // Esperar más tiempo para que se procese completamente
-            console.log('🔄 Waiting for ad to be fully loaded...');
+            // Esperar a que se cargue completamente
             for (let i = 0; i < 10; i++) {
                 await new Promise(resolve => setTimeout(resolve, 500));
                 if (this.rewardedAd.loaded) {
-                    console.log(`✅ Ad loaded after ${(i + 1) * 500}ms`);
                     break;
                 }
-                console.log(`🔄 Still waiting... (${(i + 1) * 500}ms)`);
             }
-
-            // Verificar si realmente se cargó
-            console.log('🔍 DEBUG: Checking if ad is loaded...');
-            console.log('🔍 DEBUG: this.rewardedAd.loaded:', this.rewardedAd.loaded);
-
-            if (this.rewardedAd.loaded) {
-                console.log('✅ Hint interstitial ad loaded successfully');
-            } else {
-                console.error('❌ Hint interstitial ad failed to load - loaded property is false');
-                console.log('🔍 DEBUG: Ad object after load attempt:', {
-                    loaded: this.rewardedAd.loaded,
-                    hasLoad: typeof this.rewardedAd.load === 'function',
-                    hasShow: typeof this.rewardedAd.show === 'function'
-                });
-            }
-
-            // Limpiar listeners
-            unsubscribeLoaded();
-            unsubscribeError();
 
         } catch (error) {
-            console.error('❌ Error loading hint interstitial ad:', error);
-            if (error instanceof Error) {
-                console.error('❌ Error name:', error.name);
-                console.error('❌ Error message:', error.message);
-                console.error('❌ Error stack:', error.stack);
-            }
+            console.error('❌ Error loading hint ad:', error);
         }
     }
 
@@ -236,22 +182,22 @@ class AdsManager {
                 return;
             }
 
-            console.log('🔄 Showing interstitial ad...');
+            console.log('🔄 Showing rewarded interstitial ad (level completion)...');
 
             // Verificar si el anuncio está cargado
             if (!this.interstitialAd.loaded) {
-                console.log('🔄 Loading interstitial ad...');
+                console.log('🔄 Loading rewarded interstitial ad...');
                 await this.loadInterstitialAd();
 
                 if (!this.interstitialAd.loaded) {
-                    console.error('❌ Failed to load interstitial ad');
+                    console.error('❌ Failed to load rewarded interstitial ad');
                     return;
                 }
             }
 
             // Mostrar el anuncio
             await this.interstitialAd.show();
-            console.log('✅ Interstitial ad completed');
+            console.log('✅ Rewarded interstitial ad completed');
 
             // Cargar nuevo anuncio para la próxima vez
             this.loadInterstitialAd();
@@ -296,72 +242,28 @@ class AdsManager {
 
                 let adShown = false;
 
-                // Configurar listeners
-                const unsubscribeLoaded = this.rewardedAd.addAdEventListener(
-                    AdEventType.LOADED,
-                    () => {
-                        console.log('✅ Hint interstitial ad loaded in listener');
-                    }
-                );
-
-                const unsubscribeClosed = this.rewardedAd.addAdEventListener(
-                    AdEventType.CLOSED,
-                    () => {
-                        console.log('✅ Hint interstitial ad closed');
-                        unsubscribeLoaded();
-                        unsubscribeClosed();
-                        unsubscribeError();
-
-                        // Cargar nuevo anuncio para la próxima vez
-                        this.loadRewardedAd();
-
-                        resolve(true); // Siempre otorgar recompensa al cerrar
-                    }
-                );
-
-                const unsubscribeError = this.rewardedAd.addAdEventListener(
-                    AdEventType.ERROR,
-                    (error: any) => {
-                        console.error('❌ Hint interstitial ad error:', error);
-                        unsubscribeLoaded();
-                        unsubscribeClosed();
-                        unsubscribeError();
-
-                        // Intentar recargar el anuncio
-                        this.loadRewardedAd();
-
-                        resolve(false);
-                    }
-                );
-
+                // Mostrar RewardedInterstitialAd sin listeners complejos
                 // Verificar si el anuncio está cargado
                 if (!this.rewardedAd.loaded) {
-                    console.log('🔄 Loading rewarded ad before showing...');
                     await this.loadRewardedAd();
 
-                    // Esperar más tiempo para que se cargue completamente
-                    console.log('🔄 Waiting for ad to be ready...');
+                    // Esperar a que se cargue
                     for (let i = 0; i < 20; i++) {
                         await new Promise(resolve => setTimeout(resolve, 250));
                         if (this.rewardedAd.loaded) {
-                            console.log(`✅ Ad ready after ${(i + 1) * 250}ms`);
                             break;
                         }
                     }
-
-                    if (!this.rewardedAd.loaded) {
-                        console.error('❌ Failed to load rewarded ad after retry');
-                        console.log('⚠️ Attempting to show ad anyway...');
-                        // Intentar mostrar el anuncio de todas formas
-                    }
                 }
-
-                console.log('✅ Rewarded ad is loaded, showing...');
 
                 // Mostrar el anuncio
                 await this.rewardedAd.show();
                 adShown = true;
-                console.log('✅ Rewarded ad show() called successfully');
+
+                // Para RewardedInterstitialAd, siempre otorgar recompensa después de show()
+                // Cargar nuevo anuncio para la próxima vez
+                this.loadRewardedAd();
+                resolve(true); // ✅ Otorgar recompensa siempre
 
             } catch (error) {
                 console.error('❌ Error showing rewarded ad:', error);
@@ -431,11 +333,7 @@ class AdsManager {
     // NUEVA FUNCIÓN: Obtener pista (gratis o con anuncio)
     async getHint(levelId: string): Promise<boolean> {
         try {
-            console.log('🔍 DEBUG: Getting hint for level:', levelId);
-            await this.debugAdStatus();
-
             const canUseFree = await this.canUseFreeHint(levelId);
-            console.log('🔍 DEBUG: canUseFree:', canUseFree);
 
             if (canUseFree) {
                 // Primera pista gratis
@@ -460,14 +358,11 @@ class AdsManager {
                 }
 
                 const rewardEarned = await this.showRewardedAd();
-                console.log('🔍 DEBUG: rewardEarned:', rewardEarned);
 
                 if (rewardEarned) {
-                    console.log('✅ Anuncio completado, pista otorgada');
                     await this.incrementHintsUsedInLevel(levelId);
                     return true;
                 } else {
-                    console.log('❌ Anuncio no completado, pista no otorgada');
                     return false;
                 }
             }
@@ -488,22 +383,7 @@ class AdsManager {
         }
     }
 
-    // Función de debug para verificar el estado de los anuncios
-    async debugAdStatus(): Promise<void> {
-        console.log('🔍 DEBUG: Ad Status');
-        console.log('  - isInitialized:', this.isInitialized);
-        console.log('  - useMockAds:', this.useMockAds);
-        console.log('  - interstitialAd exists:', !!this.interstitialAd);
-        console.log('  - rewardedAd exists:', !!this.rewardedAd);
 
-        if (this.interstitialAd) {
-            console.log('  - interstitialAd.loaded:', this.interstitialAd.loaded);
-        }
-
-        if (this.rewardedAd) {
-            console.log('  - rewardedAd.loaded:', this.rewardedAd.loaded);
-        }
-    }
 }
 
 // Exportar instancia singleton
@@ -518,4 +398,3 @@ export const canUseFreeHint = (levelId: string): Promise<boolean> => adsManager.
 export const getHint = (levelId: string): Promise<boolean> => adsManager.getHint(levelId);
 export const incrementHintsUsedInLevel = (levelId: string): Promise<void> => adsManager.incrementHintsUsedInLevel(levelId);
 export const resetHintsForLevel = (levelId: string): Promise<void> => adsManager.resetHintsForLevel(levelId);
-export const debugAdStatus = (): Promise<void> => adsManager.debugAdStatus(); 

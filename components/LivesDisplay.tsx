@@ -21,9 +21,6 @@ const LivesDisplay: React.FC<LivesDisplayProps> = ({
     // Usar el hook para obtener el estado de vidas
     const { livesState, timeRemaining, formatTimeRemaining } = useLives();
 
-    // Debug: Log cuando cambia el estado
-    console.log('🔄 LivesDisplay render - Vidas:', livesState.currentLives, 'Tiempo:', timeRemaining, 'Timestamp:', Date.now());
-
     const renderHeart = (index: number) => {
         const isFilled = index < livesState.currentLives;
         const size = compact ? 16 : 20;
